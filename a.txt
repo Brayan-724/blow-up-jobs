@@ -1,0 +1,25 @@
+|------------------|----------------------------------------------|
+|>Process 0      X | [r]estart [k]ill [i]nsert [e]dit [v]isual    |
+| Process 1      V |----------------------------------------------|
+| Process 2      X |                                              |
+|                  | Lorem ipsum dolor sit amet, consectetur adip |
+|                  | cing elit. Aliquam et enim et neque sollicit |
+|                  | in condimentum in non elit. Aliquam turpis d |
+|                  | , eleifend a enim ac, mollis rhoncus ligula. |
+|                  | aecenas nisl sem, auctor ac mauris non, rhon |
+|                  | s lacinia sapien. In in justo sed tortor lac |
+|                  | ia consectetur. Donec placerat ultricies con |
+|                  | llis. Donec lacinia sem non urna scelerisque |
+|                  | eu hendrerit magna pharetra. In dignissim ve |
+|                  | nibh eget fermentum. Phasellus at risus ac q |
+|                  | m viverra malesuada. Sed lorem sapien, maxim |
+|                  |  et malesuada ac, porttitor sit amet mi. Pel |
+|                  | ntesque habitant morbi tristique senectus et |
+|                  | etus et malesuada fames ac turpis egestas. N |
+|                  |  fringilla dolor nec elit pharetra porttitor |
+|                  |                                              |
+|                  |                                              |
+|                  |                                              |
+|                  |                                              |
+|                  |                                              |
+|------------------|----------------------------------------------|
