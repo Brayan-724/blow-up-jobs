@@ -32,3 +32,19 @@ impl Stream for TermEvents {
         self.poll(cx).map(Some)
     }
 }
+
+pub struct CaptureMouse;
+
+impl CaptureMouse {
+    pub fn scoped() -> io::Result<Self> {
+        crossterm::execute!(io::stdout(), crossterm::event::EnableMouseCapture)?;
+
+        Ok(Self)
+    }
+}
+
+impl Drop for CaptureMouse {
+    fn drop(&mut self) {
+        _ = crossterm::execute!(io::stdout(), crossterm::event::DisableMouseCapture);
+    }
+}

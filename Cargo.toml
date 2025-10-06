@@ -12,4 +12,6 @@ rustix = { version = "1.1.2", features = ["process"] }
 shellish_parse = "2.2.0"
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full", "mio"] }
+tokio-scoped = "0.2.0"
+variadics_please = "1.1.0"
 vt100 = "0.15.2"

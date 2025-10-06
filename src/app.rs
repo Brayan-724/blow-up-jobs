@@ -1,86 +1,90 @@
-use std::io;
+use std::sync::Arc;
+use std::time::Duration;
 
-use crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::buffer::Buffer;
+use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::widgets::Widget;
-use ratatui::{DefaultTerminal, Frame};
 
-use crate::events::TermEvents;
-use crate::job::{Job, JobStartError};
+use crate::animation::AnimationTicker;
+use crate::job::Job;
+use crate::theme::AppTheme;
+use crate::ui::{Action, Component};
 
+#[derive(Default)]
 pub struct App {
-    should_exit: bool,
-    job: Job,
+    current_job: Option<usize>,
+    pub jobs: Vec<Job>,
+    pub theme: Arc<AppTheme>,
+    pub anim: AnimationTicker,
 }
 
 impl App {
-    pub async fn run(term: &mut DefaultTerminal) -> io::Result<()> {
-        let mut app = App {
-            should_exit: false,
-            job: Job::new("nu -c 'print A; sleep 1sec; print B'").await,
-        };
+    pub fn new() -> Self {
+        // Lets animate first frame
+        let mut anim = AnimationTicker::default();
+        anim.next_tick(Duration::ZERO);
 
-        crossterm::execute!(io::stdout(), crossterm::event::EnableMouseCapture)?;
-
-        while !app.should_exit {
-            tokio::task::block_in_place(|| term.draw(|frame| app.draw(frame)))?;
-            app.handle_events().await?;
+        Self {
+            anim,
+            ..Default::default()
         }
-
-        crossterm::execute!(io::stdout(), crossterm::event::DisableMouseCapture)?;
-
-        Ok(())
     }
 
-    fn draw(&mut self, frame: &mut Frame) {
-        frame.render_widget(self, frame.area());
+    pub fn current_job(&self) -> Option<&Job> {
+        self.jobs.get(self.current_job?)
     }
 
-    async fn handle_events(&mut self) -> io::Result<()> {
-        let job_notifier = self.job.notify.notified();
+    pub fn current_job_mut(&mut self) -> Option<&mut Job> {
+        self.jobs.get_mut(self.current_job?)
+    }
 
-        tokio::select! {
-            Ok(ev) = TermEvents => self.handle_term_events(ev).await?,
-            _ = job_notifier => {},
+    /// Returns whether needs to waits
+    pub async fn job_tick(&self) -> bool {
+        if let Some(job) = self.current_job() {
+            job.notify.notified().await;
+
+            true
+        } else {
+            false
         }
-
-        Ok(())
     }
 
-    async fn handle_term_events(&mut self, event: Event) -> io::Result<()> {
-        match event {
-            Event::Key(KeyEvent {
-                code: KeyCode::Char('q'),
-                ..
-            }) => {
-                self.should_exit = true;
-
-                self.job.kill().await;
+    pub async fn kill_jobs(&mut self) {
+        tokio_scoped::scope(|scope| {
+            for job in &mut self.jobs {
+                scope.spawn(async {
+                    job.kill().await;
+                });
             }
-            Event::Key(KeyEvent {
-                code: KeyCode::Char('e'),
-                ..
-            }) => {
-                if let Err(e) = self.job.start().await {
-                    match e {
-                        JobStartError::Io(error) => return Err(error),
-                        JobStartError::NoCommand => println!("NoCommand"),
-                        JobStartError::NotFound(_) => println!("NotFound"),
-                        JobStartError::Parse(_) => println!("ParseError"),
-                        JobStartError::Rustix(_) => println!("RustixError"),
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        Ok(())
+        });
     }
 }
 
-impl Widget for &mut App {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        self.job.render(area, buf);
+impl Component for App {
+    type State = Self;
+
+    async fn handle_key_events(_: &mut Self::State, key: KeyEvent) -> Action {
+        match key.code {
+            KeyCode::Char('q') => Action::Quit,
+            _ => Action::Noop,
+        }
+    }
+
+    async fn propagate_event(state: &mut Self::State, event: crossterm::event::Event) -> Action {
+        Job::handle_event(state, event).await?;
+
+        Action::Noop
+    }
+
+    fn draw(state: &mut Self::State, frame: &mut Frame, area: Rect) {
+        use crate::ui::prelude::*;
+
+        let area =
+            Layout::horizontal([Constraint::Length(25), Constraint::Percentage(100)]).split(area);
+
+        sidebar::render(state, area[0], frame);
+        Job::draw(state, frame, area[1]);
+
+        intro_overlay::render(state, frame);
     }
 }

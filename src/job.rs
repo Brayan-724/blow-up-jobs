@@ -1,17 +1,14 @@
 use std::io;
 use std::sync::Arc;
+use std::time::Duration;
 
 use portable_pty::{MasterPty, PtyPair, native_pty_system};
-use ratatui::buffer::Buffer;
-use ratatui::layout::{Rect, Size};
-use ratatui::widgets::Widget;
+use ratatui::layout::Size;
 use rustix::process::Signal;
 use rustix::termios::Pid;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use vt100::Parser;
-
-use crate::vterm;
 
 #[derive(Debug, Error)]
 pub enum JobStartError {
@@ -28,27 +25,33 @@ pub enum JobStartError {
 }
 
 pub struct JobRunning {
-    pty: Box<dyn MasterPty + Send + 'static>,
-    vterm: Arc<RwLock<Parser>>,
-    pid: u32,
-    // child: Child,
+    pub pty: Box<dyn MasterPty + Send + 'static>,
+    pub vterm: Arc<RwLock<Parser>>,
+    pub pid: u32,
+    pub status: Arc<RwLock<Option<u32>>>,
 }
 
 pub struct Job {
-    cmd: String,
-    running: Option<JobRunning>,
+    pub cmd: String,
     pub notify: Arc<tokio::sync::Notify>,
-    size: Size,
+    pub running: Option<JobRunning>,
+    pub size: Size,
 }
 
 impl Job {
-    pub async fn new(cmd: impl ToString) -> Self {
+    pub fn new(cmd: impl ToString) -> Self {
         Self {
             cmd: cmd.to_string(),
-            running: None,
             notify: Default::default(),
+            running: None,
             size: Size::new(80, 24),
         }
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.running
+            .as_ref()
+            .is_some_and(|r| r.status.blocking_read().is_none())
     }
 
     pub async fn start(&mut self) -> Result<(), JobStartError> {
@@ -72,9 +75,29 @@ impl Job {
         let mut child = slave.spawn_command(cmd).unwrap();
         let pid = child.process_id().unwrap();
 
-        tokio::task::spawn_blocking(move || {
-            let _ = child.wait();
-            drop(slave);
+        let status = Arc::new(RwLock::new(None));
+
+        tokio::task::spawn({
+            let status = status.clone();
+
+            async move {
+                loop {
+                    match child.try_wait() {
+                        Ok(None) => {}
+                        Ok(Some(s)) => {
+                            *status.write_owned().await = Some(s.exit_code());
+                            drop(slave);
+                            break;
+                        }
+                        Err(err) => {
+                            println!("Error waiting job child: {err}");
+                            break;
+                        }
+                    }
+
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+            }
         });
 
         let vterm = Arc::new(RwLock::new(Parser::new(
@@ -104,6 +127,7 @@ impl Job {
             pty: master,
             vterm,
             pid,
+            status,
         });
 
         Ok(())
@@ -119,8 +143,6 @@ impl Job {
             Signal::KILL,
         )
         .is_ok()
-
-        // job.pty;
     }
 
     pub async fn restart(&mut self) -> Result<(), JobStartError> {
@@ -131,24 +153,5 @@ impl Job {
 
     pub fn with_cmd(&mut self, cmd: String) {
         self.cmd = cmd;
-    }
-}
-
-impl Widget for &mut Job {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let size = area.as_size();
-        self.size = size;
-        if let Some(ref job) = self.running {
-            _ = job.pty.resize(portable_pty::PtySize {
-                rows: size.height,
-                cols: size.width,
-                pixel_width: 0,
-                pixel_height: 0,
-            });
-            job.vterm.blocking_write().set_size(size.width, size.height);
-            vterm::VTermWidget::new(job.vterm.blocking_read().screen()).render(area, buf);
-        } else {
-            ratatui::text::Text::from("No running job").render(area, buf);
-        }
     }
 }

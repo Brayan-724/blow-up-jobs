@@ -62,9 +62,7 @@ impl<'a> VTermWidget<'a> {
     #[inline]
     #[must_use]
     pub fn new(screen: &'a Screen) -> Self {
-        VTermWidget {
-            screen,
-        }
+        VTermWidget { screen }
     }
 
     #[inline]
