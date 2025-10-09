@@ -1,5 +1,6 @@
 use crossterm::event::KeyCode;
 
+use crate::animation::AnimationTicker;
 use crate::app::App;
 use crate::job::Job;
 use crate::ui::prelude::*;
@@ -34,7 +35,7 @@ impl Component for Job {
 
         frame.draw(render_help, area[0], ());
         frame.draw(render_job, area[1], state);
-        frame.draw(render_footer, area[2], ());
+        frame.draw(render_footer, area[2], &state.anim);
     }
 }
 
@@ -58,11 +59,11 @@ fn render_job(state: &mut App, frame: &mut Frame, area: Rect) {
     if let Some(job) = state.current_job_mut() {
         render_vterm(job, frame, area);
     } else {
-        render_welcum_screen(state, area, frame.buffer_mut());
+        render_welcome_screen(state, area, frame.buffer_mut());
     }
 }
 
-fn render_welcum_screen(state: &mut App, area: Rect, buf: &mut Buffer) {
+fn render_welcome_screen(state: &mut App, area: Rect, buf: &mut Buffer) {
     let area = Layout::vertical([
         Constraint::Max(3),
         Constraint::Length(2),
@@ -71,7 +72,7 @@ fn render_welcum_screen(state: &mut App, area: Rect, buf: &mut Buffer) {
     ])
     .split(area);
 
-    Text::from_iter(
+    let welcome_text = Text::from_iter(
         [
             Line::from_iter(
                 [
@@ -90,14 +91,9 @@ fn render_welcum_screen(state: &mut App, area: Rect, buf: &mut Buffer) {
         ]
         .into_iter(),
     )
-    .centered()
-    .render(area[1], buf);
+    .centered();
 
-    let area = Layout::horizontal([Constraint::Length(22)])
-        .flex(Flex::Center)
-        .split(area[3])[0];
-
-    Text::from_iter(
+    let bindings_text = Text::from_iter(
         [
             Line::from_iter(
                 [
@@ -115,8 +111,24 @@ fn render_welcum_screen(state: &mut App, area: Rect, buf: &mut Buffer) {
             ),
         ]
         .into_iter(),
-    )
-    .render(area, buf);
+    );
+
+    let bindings_area = Layout::horizontal([Constraint::Length(22)])
+        .flex(Flex::Center)
+        .split(area[3])[0];
+
+    if !state.anim.ended() {
+        let tick = state.anim.range(60..100);
+        let haundreds = tick.pow(2) / 300;
+
+        if haundreds % 2 == 1 {
+            welcome_text.render(area[1], buf);
+            bindings_text.render(bindings_area, buf);
+        }
+    } else {
+        welcome_text.render(area[1], buf);
+        bindings_text.render(bindings_area, buf);
+    }
 }
 
 fn render_vterm(job: &mut Job, frame: &mut Frame, area: Rect) {
@@ -139,7 +151,12 @@ fn render_vterm(job: &mut Job, frame: &mut Frame, area: Rect) {
     }
 }
 
-fn render_footer(area: Rect, buf: &mut Buffer) {
+fn render_footer(anim: &AnimationTicker, area: Rect, buf: &mut Buffer) {
+    let area_width = area.width.saturating_sub(10);
+    let area = area.inner(Margin::horizontal(
+        area_width - anim.map(60..100, 0..area_width),
+    ));
+
     Line::from("Apika Luca".to_span().fg(Color::Magenta))
         .centered()
         .bold()

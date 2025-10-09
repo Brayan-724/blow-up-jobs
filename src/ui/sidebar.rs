@@ -4,8 +4,8 @@ use crate::ui::prelude::*;
 pub fn render(state: &App, area: Rect, frame: &mut Frame) {
     let area = Layout::vertical([Constraint::Percentage(100), Constraint::Length(5)]).split(area);
 
+    frame.draw_stateless(render_help, area[1].offset_x(1).reduce((2, 0)));
     frame.draw(render_sidebar, area[0], state);
-    frame.draw_stateless(render_help, area[1].offset_x(1));
 }
 
 fn render_sidebar(_: &App, area: Rect, buf: &mut Buffer) {
@@ -16,39 +16,9 @@ fn render_sidebar(_: &App, area: Rect, buf: &mut Buffer) {
         "Process C",
     ];
 
-    let area = area
-        .offset(Offset { x: 0, y: 2 })
-        .set_height(items.len() as u16 * 2 + 2);
+    let area = area.offset_y(2).set_height(items.len() as u16 * 2 + 2);
 
-    {
-        Block::new()
-            .borders(!Borders::RIGHT)
-            .border_set(border::ROUNDED)
-            .border_style(Color::LightMagenta)
-            .render(area, buf);
-
-        let x = area.right() - 1;
-
-        buf[(x, area.top() - 1)]
-            .set_symbol(line::ROUNDED_TOP_LEFT)
-            .set_fg(Color::LightMagenta);
-        buf[(x, area.top())]
-            .set_symbol(line::ROUNDED_BOTTOM_RIGHT)
-            .set_fg(Color::LightMagenta);
-        buf[(x, area.bottom() - 1)]
-            .set_symbol(line::ROUNDED_TOP_RIGHT)
-            .set_fg(Color::LightMagenta);
-        let y = buf.area.bottom() - 3;
-        buf[(x, y)]
-            .set_symbol(line::ROUNDED_BOTTOM_LEFT)
-            .set_fg(Color::LightMagenta);
-
-        for y in area.bottom()..y {
-            buf[(x, y)]
-                .set_symbol(line::VERTICAL)
-                .set_fg(Color::LightMagenta);
-        }
-    }
+    let borders_area = area;
 
     let area = area.offset(Offset { x: 1, y: 1 }).reduce((2, 0));
 
@@ -83,7 +53,7 @@ fn render_sidebar(_: &App, area: Rect, buf: &mut Buffer) {
 
         let fg = Color::White;
 
-        let max_size = area.width as usize - 2;
+        let max_size = area.width.saturating_sub(2) as usize;
         let item = if item.len() > max_size {
             &item[..max_size]
         } else {
@@ -91,6 +61,59 @@ fn render_sidebar(_: &App, area: Rect, buf: &mut Buffer) {
         };
 
         item.to_text().fg(fg).bold().bg(bg).render(area, buf);
+    }
+
+    render_sidebar_borders(borders_area, buf);
+}
+
+fn render_sidebar_borders(area: Rect, buf: &mut Buffer) {
+    Block::new()
+        .borders(!Borders::RIGHT)
+        .border_set(border::ROUNDED)
+        .border_style(Color::LightMagenta)
+        .render(area, buf);
+
+    let x = area.right() - 1;
+
+    if area.width > 1 {
+        buf[(x, area.top())]
+            .set_symbol(line::ROUNDED_TOP_LEFT)
+            .set_fg(Color::LightMagenta);
+
+        buf[(x, area.top())]
+            .set_symbol(line::ROUNDED_BOTTOM_RIGHT)
+            .set_fg(Color::LightMagenta);
+
+        buf[(x, area.bottom() - 1)]
+            .set_symbol(line::ROUNDED_TOP_RIGHT)
+            .set_fg(Color::LightMagenta);
+    } else {
+        buf[(x, area.top())]
+            .set_symbol(line::VERTICAL)
+            .set_fg(Color::LightMagenta);
+
+        buf[(x, area.bottom() - 1)]
+            .set_symbol(line::VERTICAL)
+            .set_fg(Color::LightMagenta);
+    }
+
+    buf[(x, area.top().saturating_sub(2))]
+        .set_symbol(line::ROUNDED_TOP_LEFT)
+        .set_fg(Color::LightMagenta);
+
+    buf[(x, area.top().saturating_sub(1))]
+        .set_symbol(line::VERTICAL)
+        .set_fg(Color::LightMagenta);
+
+    let y = buf.area.bottom().saturating_sub(1);
+    buf[(x, y)]
+        .set_symbol(line::ROUNDED_BOTTOM_LEFT)
+        .set_fg(Color::LightMagenta);
+
+    for y in area.bottom()..y {
+        buf[(x, y)]
+            .set_symbol(line::VERTICAL)
+            .set_fg(Color::LightMagenta);
     }
 }
 

@@ -16,6 +16,7 @@ mod variadicts;
 mod vterm;
 
 use std::io;
+use std::time::Duration;
 
 use ratatui::DefaultTerminal;
 
@@ -23,35 +24,16 @@ use crate::app::App;
 use crate::events::{CaptureMouse, TermEvents};
 use crate::ui::Component;
 
-// fn main() {
-//     let (term_w, term_h) = crossterm::terminal::size().unwrap();
-//     let term_w = term_w as i32 - 1;
-//     let term_h = term_h as i32 - 1;
-//
-//     for level in (0..=(term_w / 2) as usize).rev() {
-//         print!("\n");
-//         print!("{level}\n");
-//         for y in 0..term_h {
-//             for x in 0..term_w {
-//                 let Some(c) = render_char_at(level, x - term_w / 2, y - term_h / 2) else {
-//                     print!(" ");
-//                     continue;
-//                 };
-//
-//                 print!("{c}");
-//             }
-//
-//             print!("\n");
-//         }
-//         print!("\n");
-//     }
-// }
-
 #[tokio::main]
 async fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
 
     let mut app = App::new();
+
+    if std::env::var("BUJ_ANIMATION_DEBUG").is_ok() {
+        app.anim.debug();
+    }
+
     let result = run_app(&mut terminal, &mut app).await;
 
     ratatui::restore();
@@ -61,23 +43,41 @@ async fn main() -> io::Result<()> {
 async fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
     let _ = CaptureMouse::scoped()?;
 
+    let mut quitting = false;
+
     'draw: loop {
         tokio::task::block_in_place(|| terminal.draw(|frame| App::draw(app, frame, frame.area())))?;
+
+        if quitting {
+            app.anim.wait_tick().await;
+
+            if app.anim.ended() {
+                break 'draw;
+            } else {
+                app.anim.update();
+                continue 'draw;
+            }
+        }
 
         loop {
             let job_tick = app.job_tick();
             let anim = app.anim.wait_tick();
 
             let action = tokio::select! {
-                Ok(ev) = TermEvents => App::handle_event(app, ev).await,
+                true = anim => app.anim.update(),
                 true = job_tick => continue 'draw,
-                true = anim => app.anim.update(100),
-
+                Ok(ev) = TermEvents => App::handle_event(app, ev).await,
             };
 
             match action {
                 ui::Action::Noop => {}
-                ui::Action::Quit => break 'draw,
+                ui::Action::Quit => {
+                    app.anim.reverse();
+                    app.anim.start();
+                    app.anim.next_tick(Duration::from_millis(10));
+                    quitting = true;
+                    continue 'draw;
+                }
                 ui::Action::Tick => continue 'draw,
             }
         }

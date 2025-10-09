@@ -6,6 +6,7 @@ pub mod job;
 pub mod sidebar;
 
 use std::marker::PhantomData;
+use std::ops;
 use std::rc::Rc;
 
 use crossterm::event::{Event, KeyEvent, MouseEvent};
@@ -13,7 +14,7 @@ use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Flex, Margin, Offset, Rect, Size};
 
-use crate::variadicts::{all_tuples_repeated, indexed_slice};
+use crate::variadicts::{all_tuples_repeated, dual_permutation, indexed_slice};
 
 #[allow(unused_imports)]
 pub mod prelude {
@@ -222,8 +223,8 @@ pub trait RectExt: Sized {
 impl RectExt for Rect {
     fn reduce(mut self, size: impl Into<Size>) -> Self {
         let size: Size = size.into();
-        self.width -= size.width;
-        self.height -= size.height;
+        self.width = self.width.saturating_sub(size.width);
+        self.height = self.height.saturating_sub(size.height);
 
         self
     }
@@ -240,10 +241,12 @@ impl RectExt for Rect {
 
     fn offset_x(self, value: i32) -> Self {
         self.offset(Offset::x(value))
+            .set_width(self.width.saturating_sub_signed(value as i16))
     }
 
     fn offset_y(self, value: i32) -> Self {
         self.offset(Offset::y(value))
+            .set_height(self.height.saturating_sub_signed(value as i16))
     }
 }
 
@@ -290,3 +293,41 @@ impl MarginExt for Margin {
         }
     }
 }
+
+pub trait Arithmetic<T>:
+    Sized
+    + ops::Add<Self, Output = T>
+    + ops::Sub<Self, Output = T>
+    + ops::Mul<Self, Output = T>
+    + ops::Div<Self, Output = T>
+{
+}
+
+impl<T, S> Arithmetic<T> for S where
+    S: ops::Add<Self, Output = T>
+        + ops::Sub<Self, Output = T>
+        + ops::Mul<Self, Output = T>
+        + ops::Div<Self, Output = T>
+{
+}
+
+pub trait Cast<T> {
+    fn cast(self) -> T;
+}
+
+macro_rules! impl_cast {
+    ($a:ty, $b:ty) => {
+        impl_cast!(@ $a, $b);
+        impl_cast!(@ $b, $a);
+    };
+
+    (@ $a:ty, $b:ty) => {
+        impl Cast<$b> for $a {
+            fn cast(self) -> $b {
+                self as $b
+            }
+        }
+    };
+}
+
+dual_permutation!(impl_cast, [usize, u8, u16, u32, isize, i8, i16, i32,]);

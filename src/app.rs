@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -20,9 +19,9 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        // Lets animate first frame
         let mut anim = AnimationTicker::default();
-        anim.next_tick(Duration::ZERO);
+        anim.end_tick = 100;
+        anim.start();
 
         Self {
             anim,
@@ -79,8 +78,11 @@ impl Component for App {
     fn draw(state: &mut Self::State, frame: &mut Frame, area: Rect) {
         use crate::ui::prelude::*;
 
-        let area =
-            Layout::horizontal([Constraint::Length(25), Constraint::Percentage(100)]).split(area);
+        let area = Layout::horizontal([
+            Constraint::Length(1 + state.anim.range(60..90) as u16),
+            Constraint::Percentage(100),
+        ])
+        .split(area);
 
         sidebar::render(state, area[0], frame);
         Job::draw(state, frame, area[1]);

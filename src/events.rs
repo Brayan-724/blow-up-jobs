@@ -7,7 +7,7 @@ use futures::Stream;
 
 pub struct TermEvents;
 
-const TICK_DURATION: Duration = Duration::from_millis(100);
+const TICK_DURATION: Duration = Duration::from_millis(1);
 
 impl Future for TermEvents {
     type Output = io::Result<event::Event>;
