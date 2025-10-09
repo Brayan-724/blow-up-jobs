@@ -37,7 +37,7 @@ pub fn render(state: &mut App, frame: &mut Frame) {
 
             if !c.is_whitespace() {
                 cell.set_char(c);
-                cell.set_style(state.theme.accent.dim());
+                cell.set_style(state.theme.accent.dim().not_underlined());
             }
         }
     }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 

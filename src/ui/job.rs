@@ -22,7 +22,7 @@ impl Component for Job {
             Block::new()
                 .border_set(border::ROUNDED)
                 .borders(!Borders::LEFT)
-                .border_style(Color::LightMagenta),
+                .border_style(state.theme.border),
             area,
         );
 
@@ -33,37 +33,53 @@ impl Component for Job {
         ])
         .split(area.inner(Margin::both(1)));
 
-        frame.draw(render_help, area[0], &state.anim);
+        frame.draw(render_help, area[0], &state);
         frame.draw(render_job, area[1], state);
-        frame.draw(render_footer, area[2], &state.anim);
+        frame.draw(render_footer, area[2], &state);
     }
 }
 
-fn render_help(anim: &AnimationTicker, area: Rect, buf: &mut Buffer) {
-    if !anim.ended() {
+#[must_use = "is rendering loading bar"]
+fn render_loading_bar(state: &App, area: Rect, buf: &mut Buffer) -> bool {
+    if !state.anim.ended() {
         let area = area.inner(Margin::horizontal(
-            area.width - anim.map(60..100, 0..area.width),
+            area.width - state.anim.map(60..100, 0..area.width),
         ));
 
-        let area = common::pill(Color::Magenta, area, buf);
+        let bg = state
+            .theme
+            .border
+            .fg
+            .or(state.theme.accent.fg)
+            .unwrap_or(Color::Black);
+
+        let area = common::pill(bg, area, buf);
         for x in area.left()..area.right() {
             let cell = &mut buf[(x, area.y)];
             cell.reset();
-            cell.set_bg(Color::Magenta);
+            cell.set_bg(bg);
         }
 
+        true
+    } else {
+        false
+    }
+}
+
+fn render_help(state: &App, area: Rect, buf: &mut Buffer) {
+    if render_loading_bar(state, area, buf) {
         return;
     }
 
     let area = area.inner(Margin::horizontal(1));
 
     Line::from(vec![
-        "r".to_span().fg(Color::Blue).bold(),
-        "estart ".to_span(),
-        "k".to_span().fg(Color::Blue).bold(),
-        "ill ".to_span(),
-        "e".to_span().fg(Color::Blue).bold(),
-        "dit ".to_span(),
+        "r".to_span().style(state.theme.keybind_accent),
+        "estart ".to_span().style(state.theme.normal),
+        "k".to_span().style(state.theme.keybind_accent),
+        "ill ".to_span().style(state.theme.normal),
+        "e".to_span().style(state.theme.keybind_accent),
+        "dit ".to_span().style(state.theme.normal),
     ])
     .render(area, buf);
 }
@@ -155,24 +171,13 @@ fn render_vterm(job: &mut Job, frame: &mut Frame, area: Rect) {
     }
 }
 
-fn render_footer(anim: &AnimationTicker, frame: &mut Frame, area: Rect) {
-    if !anim.ended() {
-        let area = area.inner(Margin::horizontal(
-            area.width - anim.map(60..100, 0..area.width),
-        ));
-
-        let area = common::pill(Color::Magenta, area, frame.buffer_mut());
-        for x in area.left()..area.right() {
-            let cell = &mut frame.buffer_mut()[(x, area.y)];
-            cell.reset();
-            cell.set_bg(Color::Magenta);
-        }
-
+fn render_footer(state: &App, frame: &mut Frame, area: Rect) {
+    if render_loading_bar(state, area, frame.buffer_mut()) {
         return;
     }
 
     frame.draw_stateless(
-        Line::from("Apika Luca".to_span().fg(Color::Magenta))
+        Line::from("Apika Luca".to_span().style(state.theme.accent))
             .centered()
             .bold(),
         area,

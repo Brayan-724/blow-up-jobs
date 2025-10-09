@@ -1,6 +1,9 @@
 #![feature(associated_type_defaults)]
+#![feature(generic_const_exprs)]
 #![feature(stmt_expr_attributes)]
 #![feature(try_trait_v2)]
+// generic_const_exprs
+#![allow(incomplete_features)]
 
 extern crate crossterm;
 extern crate ratatui;

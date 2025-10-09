@@ -165,12 +165,14 @@ all_tuples_repeated!(impl_rects_bundle, 1, 10, ());
 
 pub trait Drawable<'a, Marker> {
     type State = ();
+    const STATEFUL: bool = false;
 
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect);
 }
 
 impl<'a, S: 'a + Widget> Drawable<'a, fn(S) -> bool> for S {
     type State = ();
+    const STATEFUL: bool = false;
 
     fn draw(self, _: Self::State, frame: &mut Frame, area: Rect) {
         self.render(area, frame.buffer_mut());
@@ -179,6 +181,7 @@ impl<'a, S: 'a + Widget> Drawable<'a, fn(S) -> bool> for S {
 
 impl<'a, S: 'a + StatefulWidget> Drawable<'a, fn(&'a S)> for S {
     type State = &'a mut S::State;
+    const STATEFUL: bool = true;
 
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
         self.render(area, frame.buffer_mut(), state);
@@ -199,6 +202,7 @@ where
     F: 'a + FnOnce(&'s S, Rect, &mut Buffer),
 {
     type State = &'s S;
+    const STATEFUL: bool = true;
 
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
         self(state, area, frame.buffer_mut())
@@ -210,6 +214,7 @@ where
     F: 'a + FnOnce(&'s mut S, Rect, &mut Buffer),
 {
     type State = &'s mut S;
+    const STATEFUL: bool = true;
 
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
         self(state, area, frame.buffer_mut())
@@ -221,6 +226,7 @@ where
     F: 'a + FnOnce(&'s S, &mut Frame, Rect),
 {
     type State = &'s S;
+    const STATEFUL: bool = true;
 
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
         self(state, frame, area)
@@ -232,6 +238,7 @@ where
     F: 'a + FnOnce(&'s mut S, &mut Frame, Rect),
 {
     type State = &'s mut S;
+    const STATEFUL: bool = true;
 
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
         self(state, frame, area)

@@ -17,13 +17,13 @@ pub fn pill(bg: Color, mut area: Rect, buf: &mut Buffer) -> Rect {
     area
 }
 
-pub struct Blinker<'a, D> {
+pub struct Blinker<'a, D, const STATEFUL: bool> {
     draw: D,
     marker: PhantomData<&'a ()>,
 }
 
-impl Blinker<'_, ()> {
-    pub fn new<'a, M, D: Drawable<'a, M, State = ()>>(draw: D) -> Blinker<'a, D> {
+impl Blinker<'_, (), false> {
+    pub fn new<'a, M, D: Drawable<'a, M>>(draw: D) -> Blinker<'a, D, { D::STATEFUL }> {
         Blinker {
             draw,
             marker: Default::default(),
@@ -31,12 +31,22 @@ impl Blinker<'_, ()> {
     }
 }
 
-impl<'a, M, D: Drawable<'a, M, State = ()>> Drawable<'a, M> for Blinker<'a, D> {
+impl<'a, M, D: Drawable<'a, M, State = ()>> Drawable<'a, M> for Blinker<'a, D, false> {
     type State = &'a AnimationTicker;
 
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
         if state.render_blink {
             self.draw.draw((), frame, area)
+        }
+    }
+}
+
+impl<'a, M, D: Drawable<'a, M>> Drawable<'a, M> for Blinker<'a, D, true> {
+    type State = (&'a AnimationTicker, D::State);
+
+    fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
+        if state.0.render_blink {
+            self.draw.draw(state.1, frame, area)
         }
     }
 }
