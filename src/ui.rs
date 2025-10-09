@@ -70,6 +70,7 @@ pub trait Component {
         match event {
             Event::Key(key_event) => Self::handle_key_events(state, key_event).await?,
             Event::Mouse(mouse_event) => Self::handle_mouse_events(state, mouse_event).await?,
+            Event::Resize(_, _) => Action::Tick?,
             _ => {}
         };
 

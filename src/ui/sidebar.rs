@@ -1,3 +1,4 @@
+use crate::animation::AnimationTicker;
 use crate::app::App;
 use crate::ui::prelude::*;
 
@@ -9,7 +10,12 @@ pub fn render(state: &mut App, area: Rect, frame: &mut Frame) {
         area[1].offset_x(1).reduce((2, 0)),
         &mut state.anim,
     );
-    frame.draw(render_sidebar, area[0], state);
+
+    frame.draw(
+        render_sidebar,
+        area[0].offset_x(30 - state.anim.range(60..90) as i32),
+        state,
+    );
 }
 
 fn render_sidebar(state: &App, frame: &mut Frame, area: Rect) {
@@ -22,82 +28,90 @@ fn render_sidebar(state: &App, frame: &mut Frame, area: Rect) {
 
     let area = area.offset_y(2).set_height(items.len() as u16 * 2 + 2);
 
-    let borders_area = area;
+    {
+        let area = area.reduce((3, 0)).offset(Offset {
+            x: 1,
+            y: 1 - state.anim.map(95..100, 0..2i32),
+        });
 
-    let area = area.offset(Offset { x: 1, y: 1 }).reduce((2, 0));
+        for (idx, item) in items.iter().enumerate() {
+            let area = area.offset_y(idx as i32 * 2).set_height(1);
 
-    for (idx, item) in items.iter().enumerate() {
-        let area = area.offset_y(idx as i32 * 2);
+            frame.draw(
+                common::Blinker::new(
+                    Line::from(vec![
+                        "200ms ".to_span(),
+                        "●".to_span().fg(if idx % 2 == 0 {
+                            Color::Green
+                        } else {
+                            Color::Red
+                        }),
+                    ])
+                    .right_aligned(),
+                ),
+                area.offset_y(1).reduce((1, 0)).set_height(1),
+                &state.anim,
+            );
 
-        frame.draw(
-            common::Blinker::new(
-                Line::from(vec![
-                    "200ms ".to_span(),
-                    "●".to_span().fg(if idx % 2 == 0 {
-                        Color::Green
-                    } else {
-                        Color::Red
-                    }),
-                ])
-                .right_aligned(),
-            ),
-            area.offset_y(1).reduce((1, 0)),
-            &state.anim,
-        );
+            let bg = if idx == 1 {
+                Color::Magenta
+            } else {
+                Color::Reset
+            };
 
-        let bg = if idx == 1 {
-            Color::Magenta
-        } else {
-            Color::Reset
-        };
-
-        frame.draw(
-            common::Blinker::new(move |area: Rect, buf: &mut Buffer| {
-                let area = common::pill(bg, area, buf);
-
-                item.to_text()
-                    .fg(Color::White)
-                    .bold()
-                    .bg(bg)
-                    .render(area, buf);
-            }),
-            area,
-            &state.anim,
-        );
+            let area = common::pill(bg, area, frame.buffer_mut());
+            frame.draw_stateless(item.to_text().fg(Color::White).bold().bg(bg), area);
+        }
     }
 
-    render_sidebar_borders(borders_area, frame.buffer_mut());
+    render_sidebar_borders(&state.anim, area, frame.buffer_mut());
 }
 
-fn render_sidebar_borders(area: Rect, buf: &mut Buffer) {
-    Block::new()
-        .borders(!Borders::RIGHT)
-        .border_set(border::ROUNDED)
-        .border_style(Color::LightMagenta)
-        .render(area, buf);
-
+fn render_sidebar_borders(anim: &AnimationTicker, area: Rect, buf: &mut Buffer) {
     let x = area.right() - 1;
 
-    if area.width > 1 {
-        buf[(x, area.top())]
-            .set_symbol(line::ROUNDED_TOP_LEFT)
-            .set_fg(Color::LightMagenta);
+    let is_island = area.width >= 30;
 
-        buf[(x, area.top())]
-            .set_symbol(line::ROUNDED_BOTTOM_RIGHT)
-            .set_fg(Color::LightMagenta);
+    let border_block = Block::new()
+        .border_set(border::ROUNDED)
+        .border_style(Color::LightMagenta);
 
-        buf[(x, area.bottom() - 1)]
-            .set_symbol(line::ROUNDED_TOP_RIGHT)
-            .set_fg(Color::LightMagenta);
+    if is_island {
+        for y in area.top()..area.bottom() {
+            buf[(x, y)]
+                .set_symbol(line::VERTICAL)
+                .set_fg(Color::LightMagenta);
+        }
+
+        let area = area
+            .reduce((area.width.saturating_sub(30), 0))
+            .offset(Offset::y(-anim.map(95..100, 0..2i32)));
+
+        border_block.borders(Borders::all()).render(area, buf);
     } else {
-        buf[(x, area.top())]
-            .set_symbol(line::VERTICAL)
-            .set_fg(Color::LightMagenta);
+        border_block.borders(!Borders::RIGHT).render(area, buf);
 
-        buf[(x, area.bottom() - 1)]
-            .set_symbol(line::VERTICAL)
-            .set_fg(Color::LightMagenta);
+        if area.width > 1 {
+            buf[(x, area.top())]
+                .set_symbol(line::ROUNDED_TOP_LEFT)
+                .set_fg(Color::LightMagenta);
+
+            buf[(x, area.top())]
+                .set_symbol(line::ROUNDED_BOTTOM_RIGHT)
+                .set_fg(Color::LightMagenta);
+
+            buf[(x, area.bottom() - 1)]
+                .set_symbol(line::ROUNDED_TOP_RIGHT)
+                .set_fg(Color::LightMagenta);
+        } else {
+            buf[(x, area.top())]
+                .set_symbol(line::VERTICAL)
+                .set_fg(Color::LightMagenta);
+
+            buf[(x, area.bottom() - 1)]
+                .set_symbol(line::VERTICAL)
+                .set_fg(Color::LightMagenta);
+        }
     }
 
     buf[(x, area.top().saturating_sub(2))]
