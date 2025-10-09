@@ -1,3 +1,5 @@
+use crate::animation::AnimationTicker;
+
 use super::prelude::*;
 
 pub fn pill(bg: Color, mut area: Rect, buf: &mut Buffer) -> Rect {
@@ -13,4 +15,28 @@ pub fn pill(bg: Color, mut area: Rect, buf: &mut Buffer) -> Rect {
     area.height = area.height.min(1);
 
     area
+}
+
+pub struct Blinker<'a, D> {
+    draw: D,
+    marker: PhantomData<&'a ()>,
+}
+
+impl Blinker<'_, ()> {
+    pub fn new<'a, M, D: Drawable<'a, M, State = ()>>(draw: D) -> Blinker<'a, D> {
+        Blinker {
+            draw,
+            marker: Default::default(),
+        }
+    }
+}
+
+impl<'a, M, D: Drawable<'a, M, State = ()>> Drawable<'a, M> for Blinker<'a, D> {
+    type State = &'a AnimationTicker;
+
+    fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
+        if state.render_blink {
+            self.draw.draw((), frame, area)
+        }
+    }
 }

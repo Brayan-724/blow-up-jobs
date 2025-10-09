@@ -1,14 +1,18 @@
 use crate::app::App;
 use crate::ui::prelude::*;
 
-pub fn render(state: &App, area: Rect, frame: &mut Frame) {
+pub fn render(state: &mut App, area: Rect, frame: &mut Frame) {
     let area = Layout::vertical([Constraint::Percentage(100), Constraint::Length(5)]).split(area);
 
-    frame.draw_stateless(render_help, area[1].offset_x(1).reduce((2, 0)));
+    frame.draw(
+        common::Blinker::new(render_help),
+        area[1].offset_x(1).reduce((2, 0)),
+        &mut state.anim,
+    );
     frame.draw(render_sidebar, area[0], state);
 }
 
-fn render_sidebar(_: &App, area: Rect, buf: &mut Buffer) {
+fn render_sidebar(state: &App, frame: &mut Frame, area: Rect) {
     let items = [
         "Process ABCDEFGHIJKLMNOPQ",
         "Process B",
@@ -23,25 +27,23 @@ fn render_sidebar(_: &App, area: Rect, buf: &mut Buffer) {
     let area = area.offset(Offset { x: 1, y: 1 }).reduce((2, 0));
 
     for (idx, item) in items.iter().enumerate() {
-        let area = area.offset(Offset {
-            x: 0,
-            y: idx as i32 * 2,
-        });
+        let area = area.offset_y(idx as i32 * 2);
 
-        {
-            let area = area.offset(Offset { x: 0, y: 1 }).reduce((1, 0));
-
-            Line::from(vec![
-                "200ms ".to_span(),
-                "●".to_span().fg(if idx % 2 == 0 {
-                    Color::Green
-                } else {
-                    Color::Red
-                }),
-            ])
-            .right_aligned()
-            .render(area, buf);
-        }
+        frame.draw(
+            common::Blinker::new(
+                Line::from(vec![
+                    "200ms ".to_span(),
+                    "●".to_span().fg(if idx % 2 == 0 {
+                        Color::Green
+                    } else {
+                        Color::Red
+                    }),
+                ])
+                .right_aligned(),
+            ),
+            area.offset_y(1).reduce((1, 0)),
+            &state.anim,
+        );
 
         let bg = if idx == 1 {
             Color::Magenta
@@ -49,21 +51,22 @@ fn render_sidebar(_: &App, area: Rect, buf: &mut Buffer) {
             Color::Reset
         };
 
-        let area = common::pill(bg, area, buf);
+        frame.draw(
+            common::Blinker::new(move |area: Rect, buf: &mut Buffer| {
+                let area = common::pill(bg, area, buf);
 
-        let fg = Color::White;
-
-        let max_size = area.width.saturating_sub(2) as usize;
-        let item = if item.len() > max_size {
-            &item[..max_size]
-        } else {
-            item
-        };
-
-        item.to_text().fg(fg).bold().bg(bg).render(area, buf);
+                item.to_text()
+                    .fg(Color::White)
+                    .bold()
+                    .bg(bg)
+                    .render(area, buf);
+            }),
+            area,
+            &state.anim,
+        );
     }
 
-    render_sidebar_borders(borders_area, buf);
+    render_sidebar_borders(borders_area, frame.buffer_mut());
 }
 
 fn render_sidebar_borders(area: Rect, buf: &mut Buffer) {

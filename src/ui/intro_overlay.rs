@@ -47,7 +47,7 @@ pub fn render(state: &mut App, frame: &mut Frame) {
         10.. => Duration::ZERO,
         5.. => Duration::from_millis(25),
         2.. => Duration::from_millis(50),
-        1 => Duration::from_millis(10),
+        1 => Duration::from_millis(20),
         0 => unreachable!(),
     };
 

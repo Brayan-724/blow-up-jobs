@@ -13,6 +13,9 @@ pub struct AnimationTicker {
     reverse: bool,
     pub tick: usize,
     tick_duration: Option<(Duration, Instant)>,
+
+    // Component things
+    pub render_blink: bool,
 }
 
 impl AnimationTicker {
@@ -52,6 +55,13 @@ impl AnimationTicker {
             }
         }
 
+        if self.is_on_range(60..100) {
+            let tick = self.range(60..100);
+            let haundreds = tick.pow(2) / 300;
+
+            self.render_blink = haundreds % 2 == 1;
+        }
+
         Action::Tick
     }
 
@@ -64,11 +74,14 @@ impl AnimationTicker {
     /// Set tick duration as [Duration::ZERO]
     pub fn start(&mut self) {
         self.ended = false;
+        self.render_blink = false;
         self.next_tick(Duration::ZERO);
     }
 
     pub fn end(&mut self) {
         self.ended = true;
+
+        self.render_blink = true;
         self.tick_duration = None;
     }
 

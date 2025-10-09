@@ -1,6 +1,6 @@
-#![feature(try_trait_v2)]
 #![feature(associated_type_defaults)]
 #![feature(stmt_expr_attributes)]
+#![feature(try_trait_v2)]
 
 extern crate crossterm;
 extern crate ratatui;
@@ -74,7 +74,7 @@ async fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()
                 ui::Action::Quit => {
                     app.anim.reverse();
                     app.anim.start();
-                    app.anim.next_tick(Duration::from_millis(10));
+                    app.anim.next_tick(Duration::from_millis(20));
                     quitting = true;
                     continue 'draw;
                 }

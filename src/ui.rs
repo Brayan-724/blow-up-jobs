@@ -13,6 +13,7 @@ use crossterm::event::{Event, KeyEvent, MouseEvent};
 use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Flex, Margin, Offset, Rect, Size};
+use ratatui::widgets::{StatefulWidget, Widget};
 
 use crate::variadicts::{all_tuples_repeated, dual_permutation, indexed_slice};
 
@@ -61,7 +62,7 @@ impl std::ops::Try for Action {
     }
 }
 
-#[expect(unused_variables)]
+#[expect(unused_variables, reason = "default templating")]
 pub trait Component {
     type State;
 
@@ -161,24 +162,40 @@ macro_rules! impl_rects_bundle {
 
 all_tuples_repeated!(impl_rects_bundle, 1, 10, ());
 
-pub trait Drawable<Marker> {
+pub trait Drawable<'a, Marker> {
     type State = ();
 
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect);
 }
 
-impl<F> Drawable<fn(Rect, &mut Buffer)> for F
+impl<'a, S: 'a + Widget> Drawable<'a, fn(S) -> bool> for S {
+    type State = ();
+
+    fn draw(self, _: Self::State, frame: &mut Frame, area: Rect) {
+        self.render(area, frame.buffer_mut());
+    }
+}
+
+impl<'a, S: 'a + StatefulWidget> Drawable<'a, fn(&'a S)> for S {
+    type State = &'a mut S::State;
+
+    fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
+        self.render(area, frame.buffer_mut(), state);
+    }
+}
+
+impl<'a, F> Drawable<'a, fn(Rect, &mut Buffer)> for F
 where
-    F: 'static + FnOnce(Rect, &mut Buffer),
+    F: 'a + FnOnce(Rect, &mut Buffer),
 {
     fn draw(self, _: Self::State, frame: &mut Frame, area: Rect) {
         self(area, frame.buffer_mut())
     }
 }
 
-impl<'s, S: 's, F> Drawable<fn(&'s S, Rect, &mut Buffer)> for F
+impl<'a, 's, S: 's, F> Drawable<'a, fn(&'s S, Rect, &mut Buffer)> for F
 where
-    F: FnOnce(&'s S, Rect, &mut Buffer),
+    F: 'a + FnOnce(&'s S, Rect, &mut Buffer),
 {
     type State = &'s S;
 
@@ -187,9 +204,31 @@ where
     }
 }
 
-impl<'s, S: 's, F> Drawable<fn(&'s mut S, &mut Frame<'_>, Rect)> for F
+impl<'a, 's, S: 's, F> Drawable<'a, fn(&'s mut S, Rect, &mut Buffer)> for F
 where
-    F: FnOnce(&'s mut S, &mut Frame, Rect),
+    F: 'a + FnOnce(&'s mut S, Rect, &mut Buffer),
+{
+    type State = &'s mut S;
+
+    fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
+        self(state, area, frame.buffer_mut())
+    }
+}
+
+impl<'a, 's, S: 's, F> Drawable<'a, fn(&'s S, &mut Frame<'_>, Rect)> for F
+where
+    F: 'a + FnOnce(&'s S, &mut Frame, Rect),
+{
+    type State = &'s S;
+
+    fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
+        self(state, frame, area)
+    }
+}
+
+impl<'a, 's, S: 's, F> Drawable<'a, fn(&'s mut S, &mut Frame<'_>, Rect)> for F
+where
+    F: 'a + FnOnce(&'s mut S, &mut Frame, Rect),
 {
     type State = &'s mut S;
 
@@ -199,15 +238,15 @@ where
 }
 
 pub trait FrameExt {
-    fn draw<M, D: Drawable<M>>(&mut self, drawable: D, area: Rect, state: D::State);
-    fn draw_stateless<M, D: Drawable<M, State = ()>>(&mut self, drawable: D, area: Rect);
+    fn draw<'a, M, D: Drawable<'a, M>>(&mut self, drawable: D, area: Rect, state: D::State);
+    fn draw_stateless<'a, M, D: Drawable<'a, M, State = ()>>(&mut self, drawable: D, area: Rect);
 }
 
 impl FrameExt for Frame<'_> {
-    fn draw<M, D: Drawable<M>>(&mut self, drawable: D, area: Rect, state: D::State) {
+    fn draw<'a, M, D: Drawable<'a, M>>(&mut self, drawable: D, area: Rect, state: D::State) {
         drawable.draw(state, self, area);
     }
-    fn draw_stateless<M, D: Drawable<M, State = ()>>(&mut self, drawable: D, area: Rect) {
+    fn draw_stateless<'a, M, D: Drawable<'a, M, State = ()>>(&mut self, drawable: D, area: Rect) {
         drawable.draw((), self, area);
     }
 }

@@ -9,7 +9,7 @@ use crate::vterm;
 impl Component for Job {
     type State = App;
 
-    async fn handle_key_events(state: &mut Self::State, key: KeyEvent) -> Action {
+    async fn handle_key_events(_: &mut Self::State, key: KeyEvent) -> Action {
         match key.code {
             KeyCode::Enter => Action::Noop,
             // KeyCode::Char('r') => {}
@@ -58,7 +58,7 @@ fn render_job(state: &mut App, frame: &mut Frame, area: Rect) {
 
     if let Some(job) = state.current_job_mut() {
         render_vterm(job, frame, area);
-    } else {
+    } else if state.anim.render_blink {
         render_welcome_screen(state, area, frame.buffer_mut());
     }
 }
@@ -72,7 +72,7 @@ fn render_welcome_screen(state: &mut App, area: Rect, buf: &mut Buffer) {
     ])
     .split(area);
 
-    let welcome_text = Text::from_iter(
+    Text::from_iter(
         [
             Line::from_iter(
                 [
@@ -91,9 +91,14 @@ fn render_welcome_screen(state: &mut App, area: Rect, buf: &mut Buffer) {
         ]
         .into_iter(),
     )
-    .centered();
+    .centered()
+    .render(area[1], buf);
 
-    let bindings_text = Text::from_iter(
+    let area = Layout::horizontal([Constraint::Length(22)])
+        .flex(Flex::Center)
+        .split(area[3])[0];
+
+    Text::from_iter(
         [
             Line::from_iter(
                 [
@@ -111,24 +116,8 @@ fn render_welcome_screen(state: &mut App, area: Rect, buf: &mut Buffer) {
             ),
         ]
         .into_iter(),
-    );
-
-    let bindings_area = Layout::horizontal([Constraint::Length(22)])
-        .flex(Flex::Center)
-        .split(area[3])[0];
-
-    if !state.anim.ended() {
-        let tick = state.anim.range(60..100);
-        let haundreds = tick.pow(2) / 300;
-
-        if haundreds % 2 == 1 {
-            welcome_text.render(area[1], buf);
-            bindings_text.render(bindings_area, buf);
-        }
-    } else {
-        welcome_text.render(area[1], buf);
-        bindings_text.render(bindings_area, buf);
-    }
+    )
+    .render(area, buf);
 }
 
 fn render_vterm(job: &mut Job, frame: &mut Frame, area: Rect) {
@@ -151,16 +140,23 @@ fn render_vterm(job: &mut Job, frame: &mut Frame, area: Rect) {
     }
 }
 
-fn render_footer(anim: &AnimationTicker, area: Rect, buf: &mut Buffer) {
+fn render_footer(anim: &AnimationTicker, frame: &mut Frame, area: Rect) {
     let area_width = area.width.saturating_sub(10);
     let area = area.inner(Margin::horizontal(
         area_width - anim.map(60..100, 0..area_width),
     ));
 
-    Line::from("Apika Luca".to_span().fg(Color::Magenta))
-        .centered()
-        .bold()
-        .render(area, buf);
+    frame.draw(
+        common::Blinker::new(
+            Line::from("Apika Luca".to_span().fg(Color::Magenta))
+                .centered()
+                .bold(),
+        ),
+        area,
+        anim,
+    );
+
+    let buf = frame.buffer_mut();
 
     let left = "Exit code: 2";
     let right = "200ms";
