@@ -20,7 +20,7 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let mut anim = AnimationTicker::default();
-        anim.end_tick = 100;
+        anim.end_tick = 120;
         anim.start();
 
         Self {

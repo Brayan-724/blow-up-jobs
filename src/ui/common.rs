@@ -10,11 +10,9 @@ pub fn pill(bg: Color, mut area: Rect, buf: &mut Buffer) -> Rect {
         }
     }
 
-    area.x += 1;
-    area.width = area.width.saturating_sub(2);
     area.height = area.height.min(1);
 
-    area
+    area.inner(Margin::horizontal(1))
 }
 
 pub struct Blinker<'a, D, const STATEFUL: bool> {

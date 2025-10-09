@@ -1,4 +1,3 @@
-use crate::animation::AnimationTicker;
 use crate::app::App;
 use crate::theme::AppTheme;
 use crate::ui::prelude::*;
@@ -8,13 +7,13 @@ pub fn render(state: &mut App, area: Rect, frame: &mut Frame) {
 
     frame.draw(
         common::Blinker::new(render_help),
-        area[1].offset_x(1).reduce((2, 0)),
+        area[1].inner_x(1).reduce((2, 0)),
         (&state.anim, state.theme.as_ref()),
     );
 
     frame.draw(
         render_sidebar,
-        area[0].offset_x(30 - state.anim.range(60..90) as i32),
+        area[0].inner_x(30 - state.anim.range(60..90) as i32),
         state,
     );
 }
@@ -27,7 +26,7 @@ fn render_sidebar(state: &App, frame: &mut Frame, area: Rect) {
         "Process C",
     ];
 
-    let area = area.offset_y(2).set_height(items.len() as u16 * 2 + 2);
+    let area = area.inner_y(2).set_height(items.len() as u16 * 2 + 2);
 
     {
         let area = area.reduce((3, 0)).offset(Offset {
@@ -36,7 +35,7 @@ fn render_sidebar(state: &App, frame: &mut Frame, area: Rect) {
         });
 
         for (idx, item) in items.iter().enumerate() {
-            let area = area.offset_y(idx as i32 * 2).set_height(1);
+            let area = area.inner_y(idx as i32 * 2).set_height(1);
 
             frame.draw(
                 common::Blinker::new(
@@ -50,7 +49,7 @@ fn render_sidebar(state: &App, frame: &mut Frame, area: Rect) {
                     ])
                     .right_aligned(),
                 ),
-                area.offset_y(1).reduce((1, 0)).set_height(1),
+                area.inner_y(1).reduce((1, 0)).set_height(1),
                 &state.anim,
             );
 

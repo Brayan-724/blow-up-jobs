@@ -263,8 +263,8 @@ pub trait RectExt: Sized {
     fn reduce(self, size: impl Into<Size>) -> Self;
     fn set_height(self, value: u16) -> Self;
     fn set_width(self, value: u16) -> Self;
-    fn offset_x(self, value: i32) -> Self;
-    fn offset_y(self, value: i32) -> Self;
+    fn inner_x(self, value: i32) -> Self;
+    fn inner_y(self, value: i32) -> Self;
 }
 
 impl RectExt for Rect {
@@ -286,12 +286,12 @@ impl RectExt for Rect {
         self
     }
 
-    fn offset_x(self, value: i32) -> Self {
+    fn inner_x(self, value: i32) -> Self {
         self.offset(Offset::x(value))
             .set_width(self.width.saturating_sub_signed(value as i16))
     }
 
-    fn offset_y(self, value: i32) -> Self {
+    fn inner_y(self, value: i32) -> Self {
         self.offset(Offset::y(value))
             .set_height(self.height.saturating_sub_signed(value as i16))
     }

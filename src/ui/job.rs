@@ -1,6 +1,5 @@
 use crossterm::event::KeyCode;
 
-use crate::animation::AnimationTicker;
 use crate::app::App;
 use crate::job::Job;
 use crate::ui::prelude::*;
@@ -39,10 +38,17 @@ impl Component for Job {
     }
 }
 
-#[must_use = "is rendering loading bar"]
-fn render_loading_bar(state: &App, area: Rect, buf: &mut Buffer) -> bool {
+fn render_loading_bar(state: &App, area: Rect, buf: &mut Buffer) {
     if !state.anim.ended() {
-        let area = area.inner(Margin::horizontal(
+        let transparent_area = if state.anim.is_on_range(80..121) {
+            area.inner(Margin::horizontal(
+                area.width - state.anim.map(80..120, 0..area.width),
+            ))
+        } else {
+            // Do not render anything
+            Rect::ZERO
+        };
+        let pill_area = area.inner(Margin::horizontal(
             area.width - state.anim.map(60..100, 0..area.width),
         ));
 
@@ -53,35 +59,47 @@ fn render_loading_bar(state: &App, area: Rect, buf: &mut Buffer) -> bool {
             .or(state.theme.accent.fg)
             .unwrap_or(Color::Black);
 
-        let area = common::pill(bg, area, buf);
+        let opaque_area = common::pill(bg, pill_area, buf);
         for x in area.left()..area.right() {
-            let cell = &mut buf[(x, area.y)];
+            let pos = Position { x, y: area.y };
+
+            if transparent_area.contains(pos) {
+                continue;
+            }
+
+            let cell = &mut buf[pos];
+
+            if !pill_area.contains(pos) {
+                cell.reset();
+                continue;
+            }
+
+            if !opaque_area.contains(pos) {
+                continue;
+            }
+
             cell.reset();
             cell.set_bg(bg);
         }
-
-        true
-    } else {
-        false
     }
 }
 
 fn render_help(state: &App, area: Rect, buf: &mut Buffer) {
-    if render_loading_bar(state, area, buf) {
-        return;
+    {
+        let area = area.inner(Margin::horizontal(1));
+
+        Line::from(vec![
+            "r".to_span().style(state.theme.keybind_accent),
+            "estart ".to_span().style(state.theme.normal),
+            "k".to_span().style(state.theme.keybind_accent),
+            "ill ".to_span().style(state.theme.normal),
+            "e".to_span().style(state.theme.keybind_accent),
+            "dit ".to_span().style(state.theme.normal),
+        ])
+        .render(area, buf);
     }
 
-    let area = area.inner(Margin::horizontal(1));
-
-    Line::from(vec![
-        "r".to_span().style(state.theme.keybind_accent),
-        "estart ".to_span().style(state.theme.normal),
-        "k".to_span().style(state.theme.keybind_accent),
-        "ill ".to_span().style(state.theme.normal),
-        "e".to_span().style(state.theme.keybind_accent),
-        "dit ".to_span().style(state.theme.normal),
-    ])
-    .render(area, buf);
+    render_loading_bar(state, area, buf);
 }
 
 fn render_job(state: &mut App, frame: &mut Frame, area: Rect) {
@@ -172,36 +190,36 @@ fn render_vterm(job: &mut Job, frame: &mut Frame, area: Rect) {
 }
 
 fn render_footer(state: &App, frame: &mut Frame, area: Rect) {
-    if render_loading_bar(state, area, frame.buffer_mut()) {
-        return;
+    {
+        frame.draw_stateless(
+            Line::from("Apika Luca".to_span().style(state.theme.accent))
+                .centered()
+                .bold(),
+            area,
+        );
+
+        let buf = frame.buffer_mut();
+
+        let left = "Exit code: 2";
+        let right = "200ms";
+
+        let area = Layout::horizontal([
+            Constraint::Length(left.len() as u16 + 2),
+            Constraint::Length(right.len() as u16 + 2),
+        ])
+        .flex(Flex::SpaceBetween)
+        .split(area);
+
+        Line::raw(left)
+            .bg(Color::Red)
+            .bold()
+            .render(common::pill(Color::Red, area[0], buf), buf);
+
+        Line::raw(right)
+            .right_aligned()
+            .bold()
+            .render(common::pill(Color::Reset, area[1], buf), buf);
     }
 
-    frame.draw_stateless(
-        Line::from("Apika Luca".to_span().style(state.theme.accent))
-            .centered()
-            .bold(),
-        area,
-    );
-
-    let buf = frame.buffer_mut();
-
-    let left = "Exit code: 2";
-    let right = "200ms";
-
-    let area = Layout::horizontal([
-        Constraint::Length(left.len() as u16 + 2),
-        Constraint::Length(right.len() as u16 + 2),
-    ])
-    .flex(Flex::SpaceBetween)
-    .split(area);
-
-    Line::raw(left)
-        .bg(Color::Red)
-        .bold()
-        .render(common::pill(Color::Red, area[0], buf), buf);
-
-    Line::raw(right)
-        .right_aligned()
-        .bold()
-        .render(common::pill(Color::Reset, area[1], buf), buf);
+    render_loading_bar(state, area, frame.buffer_mut());
 }
