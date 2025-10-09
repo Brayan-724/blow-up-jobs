@@ -33,13 +33,28 @@ impl Component for Job {
         ])
         .split(area.inner(Margin::both(1)));
 
-        frame.draw(render_help, area[0], ());
+        frame.draw(render_help, area[0], &state.anim);
         frame.draw(render_job, area[1], state);
         frame.draw(render_footer, area[2], &state.anim);
     }
 }
 
-fn render_help(area: Rect, buf: &mut Buffer) {
+fn render_help(anim: &AnimationTicker, area: Rect, buf: &mut Buffer) {
+    if !anim.ended() {
+        let area = area.inner(Margin::horizontal(
+            area.width - anim.map(60..100, 0..area.width),
+        ));
+
+        let area = common::pill(Color::Magenta, area, buf);
+        for x in area.left()..area.right() {
+            let cell = &mut buf[(x, area.y)];
+            cell.reset();
+            cell.set_bg(Color::Magenta);
+        }
+
+        return;
+    }
+
     let area = area.inner(Margin::horizontal(1));
 
     Line::from(vec![
@@ -141,19 +156,26 @@ fn render_vterm(job: &mut Job, frame: &mut Frame, area: Rect) {
 }
 
 fn render_footer(anim: &AnimationTicker, frame: &mut Frame, area: Rect) {
-    let area_width = area.width.saturating_sub(10);
-    let area = area.inner(Margin::horizontal(
-        area_width - anim.map(60..100, 0..area_width),
-    ));
+    if !anim.ended() {
+        let area = area.inner(Margin::horizontal(
+            area.width - anim.map(60..100, 0..area.width),
+        ));
 
-    frame.draw(
-        common::Blinker::new(
-            Line::from("Apika Luca".to_span().fg(Color::Magenta))
-                .centered()
-                .bold(),
-        ),
+        let area = common::pill(Color::Magenta, area, frame.buffer_mut());
+        for x in area.left()..area.right() {
+            let cell = &mut frame.buffer_mut()[(x, area.y)];
+            cell.reset();
+            cell.set_bg(Color::Magenta);
+        }
+
+        return;
+    }
+
+    frame.draw_stateless(
+        Line::from("Apika Luca".to_span().fg(Color::Magenta))
+            .centered()
+            .bold(),
         area,
-        anim,
     );
 
     let buf = frame.buffer_mut();
