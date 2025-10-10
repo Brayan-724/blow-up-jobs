@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::ops::{self, Range};
 use std::time::Duration;
 
 use tokio::time::Instant;
@@ -11,7 +11,7 @@ pub struct AnimationTicker {
     ended: bool,
     is_debugging: bool,
     reverse: bool,
-    pub tick: usize,
+    tick: usize,
     tick_duration: Option<(Duration, Instant)>,
 
     // Component things
@@ -25,6 +25,10 @@ impl AnimationTicker {
 
     pub fn ended(&self) -> bool {
         self.ended
+    }
+
+    pub fn tick(&self) -> AnimationTick {
+        AnimationTick::new(self.tick, 0..self.end_tick)
     }
 
     pub fn update(&mut self) -> Action {
@@ -109,23 +113,81 @@ impl AnimationTicker {
         true
     }
 
-    pub fn range(&self, range: Range<usize>) -> usize {
-        self.tick.min(range.end).max(range.start) - range.start
+    pub fn range(&self, range: Range<usize>) -> AnimationTick {
+        AnimationTick::new(
+            self.tick.min(range.end).max(range.start) - range.start,
+            range,
+        )
     }
 
     pub fn is_on_range(&self, range: Range<usize>) -> bool {
         range.contains(&self.tick)
     }
+}
 
-    pub fn map<T>(&self, range: Range<usize>, target: Range<T>) -> T
+#[derive(Clone, Copy)]
+pub struct AnimationTick {
+    pub tick: usize,
+    pub range: TickRange,
+}
+
+impl ops::Deref for AnimationTick {
+    type Target = usize;
+
+    fn deref(&self) -> &Self::Target {
+        &self.tick
+    }
+}
+
+impl AnimationTick {
+    pub fn new(tick: usize, range: impl Into<TickRange>) -> Self {
+        Self {
+            tick,
+            range: range.into(),
+        }
+    }
+
+    pub fn ended(&self) -> bool {
+        self.tick + self.range.start == self.range.end
+    }
+
+    pub fn tick(&self) -> usize {
+        self.tick + self.range.start
+    }
+
+    pub fn range(&self) -> usize {
+        self.range.end - self.range.start
+    }
+
+    pub fn map<T>(self, target: Range<T>) -> T
     where
-        T: Copy + Cast<usize> + Arithmetic<T>,
+        T: Copy + Cast<f32> + Arithmetic<T>,
         usize: Cast<T>,
     {
-        let target_len: usize = Cast::cast(target.end - target.start);
-        let range_len = range.end - range.start;
-        let value = self.range(range) as f32 / range_len as f32;
+        let range_len = self.range();
+        if range_len == 0 || target.end <= target.start {
+            return Cast::cast(0);
+        }
 
-        Cast::cast((value * (target_len as f32)) as usize) + target.start
+        let target_len: f32 = Cast::cast(target.end - target.start);
+
+        let value = self.tick as f32 / range_len as f32;
+
+        Cast::cast((value * target_len) as usize) + target.start
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct TickRange {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl From<Range<usize>> for TickRange {
+    fn from(value: Range<usize>) -> Self {
+        Self {
+            start: value.start,
+            end: value.end,
+        }
     }
 }

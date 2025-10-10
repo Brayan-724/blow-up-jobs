@@ -8,7 +8,7 @@ pub fn render(state: &mut App, frame: &mut Frame) {
         return;
     }
 
-    let tick = 49 - state.anim.range(1..50);
+    let tick = 49 - *state.anim.range(1..50);
 
     let term_w = frame.area().width as i32;
     let term_h = frame.area().height as i32;

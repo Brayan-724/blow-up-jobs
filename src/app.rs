@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 
@@ -11,10 +11,11 @@ use crate::ui::{Action, Component};
 
 #[derive(Default)]
 pub struct App {
-    current_job: Option<usize>,
+    pub current_job: Option<usize>,
     pub jobs: Vec<Job>,
     pub theme: Arc<AppTheme>,
     pub anim: AnimationTicker,
+    // pub popup_anim: AnimationTicker,
 }
 
 impl App {
@@ -69,7 +70,7 @@ impl Component for App {
         }
     }
 
-    async fn propagate_event(state: &mut Self::State, event: crossterm::event::Event) -> Action {
+    async fn propagate_event(state: &mut Self::State, event: Event) -> Action {
         Job::handle_event(state, event).await?;
 
         Action::Noop
@@ -79,10 +80,26 @@ impl Component for App {
         use crate::ui::prelude::*;
 
         let area =
-            Layout::horizontal([Constraint::Length(31), Constraint::Percentage(100)]).split(area);
+            Layout::horizontal([Constraint::Length(30), Constraint::Percentage(100)]).split(area);
 
-        sidebar::render(state, area[0], frame);
         Job::draw(state, frame, area[1]);
+        sidebar::render(state, area[0], frame);
+
+        // frame.draw_popup();
+
+        if state.anim.is_on_range(50..120) || state.anim.ended() {
+            let area = area[1].inner(Margin::both(20));
+
+            frame.draw(
+                common::AnimatedIsland::new(|area: Rect, buf: &mut Buffer| {
+                    Block::new().borders(Borders::all()).render(area, buf);
+                })
+                .direction(Side::Left)
+                .border_style(state.theme.border),
+                area,
+                state.anim.range(60..120),
+            );
+        }
 
         intro_overlay::render(state, frame);
     }

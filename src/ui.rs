@@ -3,6 +3,7 @@
 pub mod common;
 pub mod intro_overlay;
 pub mod job;
+pub mod popup;
 pub mod sidebar;
 
 use std::marker::PhantomData;
@@ -221,6 +222,15 @@ where
     }
 }
 
+impl<'a, F> Drawable<'a, fn(&mut Frame<'_>, Rect)> for F
+where
+    F: 'a + FnOnce(&mut Frame, Rect),
+{
+    fn draw(self, _: Self::State, frame: &mut Frame, area: Rect) {
+        self(frame, area)
+    }
+}
+
 impl<'a, 's, S: 's, F> Drawable<'a, fn(&'s S, &mut Frame<'_>, Rect)> for F
 where
     F: 'a + FnOnce(&'s S, &mut Frame, Rect),
@@ -261,6 +271,7 @@ impl FrameExt for Frame<'_> {
 
 pub trait RectExt: Sized {
     fn reduce(self, size: impl Into<Size>) -> Self;
+    fn outline(self, size: impl Into<Size>) -> Self;
     fn set_height(self, value: u16) -> Self;
     fn set_width(self, value: u16) -> Self;
     fn inner_x(self, value: i32) -> Self;
@@ -272,6 +283,16 @@ impl RectExt for Rect {
         let size: Size = size.into();
         self.width = self.width.saturating_sub(size.width);
         self.height = self.height.saturating_sub(size.height);
+
+        self
+    }
+
+    fn outline(mut self, size: impl Into<Size>) -> Self {
+        let size: Size = size.into();
+        self.x = self.x.saturating_sub(size.width);
+        self.y = self.y.saturating_sub(size.height);
+        self.width = self.width.saturating_add(size.width.saturating_mul(2));
+        self.height = self.height.saturating_add(size.height.saturating_mul(2));
 
         self
     }
@@ -347,6 +368,7 @@ pub trait Arithmetic<T>:
     + ops::Sub<Self, Output = T>
     + ops::Mul<Self, Output = T>
     + ops::Div<Self, Output = T>
+    + PartialOrd<Self>
 {
 }
 
@@ -355,6 +377,7 @@ impl<T, S> Arithmetic<T> for S where
         + ops::Sub<Self, Output = T>
         + ops::Mul<Self, Output = T>
         + ops::Div<Self, Output = T>
+        + PartialOrd
 {
 }
 
@@ -377,4 +400,17 @@ macro_rules! impl_cast {
     };
 }
 
-dual_permutation!(impl_cast, [usize, u8, u16, u32, isize, i8, i16, i32,]);
+#[rustfmt::skip]
+dual_permutation!(impl_cast, [
+    usize, u8, u16, u32,
+    isize, i8, i16, i32,
+    f32, f64,
+]);
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Side {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}

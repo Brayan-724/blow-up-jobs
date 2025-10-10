@@ -8,9 +8,29 @@ use crate::vterm;
 impl Component for Job {
     type State = App;
 
-    async fn handle_key_events(_: &mut Self::State, key: KeyEvent) -> Action {
+    async fn handle_key_events(state: &mut Self::State, key: KeyEvent) -> Action {
         match key.code {
             KeyCode::Enter => Action::Noop,
+            KeyCode::Tab => {
+                state.current_job = state
+                    .current_job
+                    .take()
+                    .map(|i| i + 1)
+                    .unwrap_or(0)
+                    .checked_rem(state.jobs.len());
+
+                Action::Tick
+            }
+            KeyCode::BackTab => {
+                state.current_job = state
+                    .current_job
+                    .take()
+                    .unwrap_or_else(|| state.jobs.len().min(1))
+                    .checked_sub(1)
+                    .or_else(|| state.jobs.len().checked_sub(1));
+
+                Action::Tick
+            }
             // KeyCode::Char('r') => {}
             _ => Action::Noop,
         }
@@ -19,8 +39,8 @@ impl Component for Job {
     fn draw(state: &mut Self::State, frame: &mut Frame, area: Rect) {
         frame.render_widget(
             Block::new()
+                .borders(Borders::all())
                 .border_set(border::ROUNDED)
-                .borders(!Borders::LEFT)
                 .border_style(state.theme.border),
             area,
         );
@@ -42,14 +62,14 @@ fn render_loading_bar(state: &App, area: Rect, buf: &mut Buffer) {
     if !state.anim.ended() {
         let transparent_area = if state.anim.is_on_range(80..121) {
             area.inner(Margin::horizontal(
-                area.width - state.anim.map(80..120, 0..area.width),
+                area.width - state.anim.range(80..120).map(0..area.width),
             ))
         } else {
             // Do not render anything
             Rect::ZERO
         };
         let pill_area = area.inner(Margin::horizontal(
-            area.width - state.anim.map(60..100, 0..area.width),
+            area.width - state.anim.range(60..100).map(0..area.width),
         ));
 
         let bg = state
