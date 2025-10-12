@@ -1,5 +1,44 @@
 #![expect(dead_code, reason = "lib in progress")]
 
+macro_rules! type_iter {
+    (<$T:ident $(, $lf:lifetime)*> once ($($arg:ident: $ty:ty),*$(,)?) $(-> $ret:ty)? $body:block) => {{
+        struct Funnel<$($lf,)*> {
+            $($arg: $ty),*
+        }
+
+        impl<$($lf,)*> TypeIteratorOnce for Funnel<$($lf,)*> {
+            type Item = type_iter!(@ret-ty $($ret)?);
+
+            fn once<$T: $crate::ui::popup::Popup>(self) -> Self::Item {
+                let Self {$($arg),*} = self;
+                $body
+            }
+        }
+
+        Funnel { $($arg),* }
+    }};
+
+    (<$T:ident $(, $lf:lifetime)*> once async ($($arg:ident: $ty:ty),*$(,)?) $(-> $ret:ty)? $body:block) => {{
+        struct Funnel<$($lf,)*> {
+            $($arg: $ty),*
+        }
+
+        impl<$($lf,)*> AsyncTypeIteratorOnce for Funnel<$($lf,)*> {
+            type Item = type_iter!(@ret-ty $($ret)?);
+
+            async fn once<$T: $crate::ui::popup::Popup>(self) -> Self::Item {
+                let Self {$($arg),*} = self;
+                $body
+            }
+        }
+
+        Funnel { $($arg),* }
+    }};
+
+    (@ret-ty) => {()};
+    (@ret-ty $ret:ty) => {$ret};
+}
+
 pub mod common;
 pub mod intro_overlay;
 pub mod job;
@@ -29,14 +68,18 @@ pub mod prelude {
     pub use ratatui::text::*;
     pub use ratatui::widgets::*;
 
+    pub use crossterm::event::*;
+
     // Overwrite ratatui::Layout
     pub use super::Layout;
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum Action {
     #[default]
     Noop,
+    /// Don't operate but takes the tick
+    Intercept,
     Quit,
     Tick,
 }
@@ -67,6 +110,9 @@ impl std::ops::Try for Action {
 pub trait Component {
     type State;
 
+    fn on_mount(state: &mut Self::State) {}
+    fn on_destroy(state: &mut Self::State) {}
+
     async fn handle_event(state: &mut Self::State, event: Event) -> Action {
         match event {
             Event::Key(key_event) => Self::handle_key_events(state, key_event).await?,
@@ -92,6 +138,8 @@ pub trait Component {
 
     fn draw(state: &mut Self::State, frame: &mut Frame, area: Rect);
 }
+
+pub type ComponentDraw<'a, S> = for<'s, 'f> fn(&'a mut S, &'s mut Frame<'f>, Rect);
 
 pub struct Layout<const N: usize, T> {
     inner: ratatui::layout::Layout,
@@ -171,6 +219,13 @@ pub trait Drawable<'a, Marker> {
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect);
 }
 
+impl<'a> Drawable<'a, ()> for () {
+    type State = ();
+    const STATEFUL: bool = false;
+
+    fn draw(self, _: Self::State, _: &mut Frame, _: Rect) {}
+}
+
 impl<'a, S: 'a + Widget> Drawable<'a, fn(S) -> bool> for S {
     type State = ();
     const STATEFUL: bool = false;
@@ -243,6 +298,15 @@ where
     }
 }
 
+impl<'a, 's, S: 's> Drawable<'static, &'s ComponentDraw<'s, S>> for ComponentDraw<'s, S> {
+    type State = &'s mut S;
+    const STATEFUL: bool = true;
+
+    fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
+        self(state, frame, area)
+    }
+}
+
 impl<'a, 's, S: 's, F> Drawable<'a, fn(&'s mut S, &mut Frame<'_>, Rect)> for F
 where
     F: 'a + FnOnce(&'s mut S, &mut Frame, Rect),
@@ -272,6 +336,7 @@ impl FrameExt for Frame<'_> {
 pub trait RectExt: Sized {
     fn reduce(self, size: impl Into<Size>) -> Self;
     fn outline(self, size: impl Into<Size>) -> Self;
+    fn centered(self, size: impl Into<Size>) -> Self;
     fn set_height(self, value: u16) -> Self;
     fn set_width(self, value: u16) -> Self;
     fn inner_x(self, value: i32) -> Self;
@@ -295,6 +360,19 @@ impl RectExt for Rect {
         self.height = self.height.saturating_add(size.height.saturating_mul(2));
 
         self
+    }
+
+    fn centered(mut self, size: impl Into<Size>) -> Self {
+        let orig = self;
+
+        let size: Size = size.into();
+
+        self.x = self.x.saturating_add(self.width / 2 - size.width / 2);
+        self.y = self.y.saturating_add(self.height / 2 - size.height / 2);
+        self.width = size.width;
+        self.height = size.height;
+
+        self.intersection(orig)
     }
 
     fn set_height(mut self, value: u16) -> Self {
@@ -413,4 +491,16 @@ pub enum Side {
     Bottom,
     Left,
     Right,
+}
+
+pub trait TypeIteratorOnce {
+    type Item;
+
+    fn once<T: popup::Popup>(self) -> Self::Item;
+}
+
+pub trait AsyncTypeIteratorOnce {
+    type Item;
+
+    async fn once<T: popup::Popup>(self) -> Self::Item;
 }

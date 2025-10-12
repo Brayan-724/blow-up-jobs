@@ -7,3 +7,6 @@ List of useful links
 # TUI
 - https://github.com/ccbrown/iocraft
 - https://github.com/joshka/tui-widgets/blob/main/tui-big-text
+
+# Trait hell
+- https://github.com/fancyflame/impl_variadics

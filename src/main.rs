@@ -1,4 +1,5 @@
 #![feature(associated_type_defaults)]
+#![feature(impl_trait_in_assoc_type)]
 #![feature(generic_const_exprs)]
 #![feature(stmt_expr_attributes)]
 #![feature(try_trait_v2)]
@@ -35,6 +36,7 @@ async fn main() -> io::Result<()> {
 
     if std::env::var("BUJ_ANIMATION_DEBUG").is_ok() {
         app.anim.debug();
+        app.popup.anim.debug();
     }
 
     let result = run_app(&mut terminal, &mut app).await;
@@ -63,17 +65,21 @@ async fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()
         }
 
         loop {
+            app.popup.update();
+
             let job_tick = app.job_tick();
             let anim = app.anim.wait_tick();
+            let popup_anim = app.popup.anim.wait_tick();
 
             let action = tokio::select! {
                 true = anim => app.anim.update(),
+                true = popup_anim => app.popup.anim.update(),
                 true = job_tick => continue 'draw,
                 Ok(ev) = TermEvents => App::handle_event(app, ev).await,
             };
 
             match action {
-                ui::Action::Noop => {}
+                ui::Action::Noop | ui::Action::Intercept => {}
                 ui::Action::Quit => {
                     app.anim.reverse();
                     app.anim.start();

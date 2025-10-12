@@ -51,7 +51,7 @@ impl<'a, M, D: Drawable<'a, M>> Drawable<'a, M> for Blinker<'a, D, true> {
 
 const LAYOUT_SIDEBAR_WIDTH: u16 = 30;
 
-pub struct AnimatedIsland<'a, D, M, const STATEFUL: bool> {
+pub struct AnimatedIsland<'a, D: Drawable<'a, M>, M, const STATEFUL: bool = { D::STATEFUL }> {
     border_style: Style,
     draw: D,
     marker: PhantomData<&'a M>,

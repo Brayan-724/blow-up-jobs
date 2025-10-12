@@ -7,7 +7,10 @@ use ratatui::layout::Rect;
 use crate::animation::AnimationTicker;
 use crate::job::Job;
 use crate::theme::AppTheme;
+use crate::ui::popup::{self, NewJobPopup, SharedPopupState};
 use crate::ui::{Action, Component};
+
+type Popups = (popup::NewJobPopup,);
 
 #[derive(Default)]
 pub struct App {
@@ -15,7 +18,7 @@ pub struct App {
     pub jobs: Vec<Job>,
     pub theme: Arc<AppTheme>,
     pub anim: AnimationTicker,
-    // pub popup_anim: AnimationTicker,
+    pub popup: SharedPopupState<Popups>,
 }
 
 impl App {
@@ -63,9 +66,26 @@ impl App {
 impl Component for App {
     type State = Self;
 
-    async fn handle_key_events(_: &mut Self::State, key: KeyEvent) -> Action {
+    async fn handle_event(state: &mut Self::State, event: Event) -> Action {
+        SharedPopupState::<Popups>::handle_event(state, event.clone()).await?;
+
+        match event {
+            Event::Key(key_event) => Self::handle_key_events(state, key_event).await?,
+            Event::Mouse(mouse_event) => Self::handle_mouse_events(state, mouse_event).await?,
+            Event::Resize(_, _) => Action::Tick?,
+            _ => {}
+        };
+
+        Self::propagate_event(state, event).await
+    }
+
+    async fn handle_key_events(state: &mut Self::State, key: KeyEvent) -> Action {
         match key.code {
             KeyCode::Char('q') => Action::Quit,
+            KeyCode::Char('n') => {
+                state.popup.open::<NewJobPopup>();
+                Action::Tick
+            }
             _ => Action::Noop,
         }
     }
@@ -85,21 +105,7 @@ impl Component for App {
         Job::draw(state, frame, area[1]);
         sidebar::render(state, area[0], frame);
 
-        // frame.draw_popup();
-
-        if state.anim.is_on_range(50..120) || state.anim.ended() {
-            let area = area[1].inner(Margin::both(20));
-
-            frame.draw(
-                common::AnimatedIsland::new(|area: Rect, buf: &mut Buffer| {
-                    Block::new().borders(Borders::all()).render(area, buf);
-                })
-                .direction(Side::Left)
-                .border_style(state.theme.border),
-                area,
-                state.anim.range(60..120),
-            );
-        }
+        SharedPopupState::<Popups>::draw(state, frame, area[1]);
 
         intro_overlay::render(state, frame);
     }
