@@ -19,16 +19,24 @@ pub struct SharedPopupState<Popups> {
 }
 
 impl<Popups: PopupBundle> SharedPopupState<Popups> {
-    pub fn update(&mut self) {
-        if self.anim.ended() && self.quitting {
-            self.quitting = false;
-            self.active_popup = None;
-            self.anim.reverse();
+    pub fn update(state: &mut App) {
+        if state.popup.anim.ended() && state.popup.quitting {
+            if let Some(popup) = state.popup.active_popup.take() {
+                let iter = type_iter!(<T, 'a> once (state: &'a mut App) {
+                    T::on_mount(state);
+                });
+
+                _ = Popups::find(popup, iter);
+            }
+
+            state.popup.quitting = false;
+            state.popup.active_popup = None;
+            state.popup.anim.reverse();
         }
     }
 
-    pub fn open<T: Popup + 'static>(&mut self) {
-        if self.active_popup.is_some() || self.quitting {
+    pub fn open<T: Popup + 'static>(state: &mut App) {
+        if state.popup.active_popup.is_some() || state.popup.quitting {
             // TODO: Warn about action not possible
             return;
         }
@@ -38,13 +46,15 @@ impl<Popups: PopupBundle> SharedPopupState<Popups> {
             return;
         }
 
-        self.active_popup = Some(TypeId::of::<T>());
-        self.anim.end_tick = T::DURATION;
-        self.anim.start();
-        self.anim.next_tick(Duration::from_millis(20));
+        state.popup.active_popup = Some(TypeId::of::<T>());
+        state.popup.anim.end_tick = T::DURATION;
+        state.popup.anim.start();
+        state.popup.anim.next_tick(Duration::from_millis(20));
+
+        T::on_mount(state);
     }
 
-    pub fn close<T: Popup + 'static>(&mut self) {
+    pub fn close(&mut self) {
         if self.active_popup.is_none() || self.quitting {
             // TODO: Warn about action not possible
             return;
@@ -62,7 +72,7 @@ impl<Popups: PopupBundle> Component for SharedPopupState<Popups> {
 
     async fn handle_event(state: &mut Self::State, event: Event) -> Action {
         if state.popup.quitting {
-            return Action::Tick;
+            return Action::Intercept;
         }
 
         let Some(popup) = state.popup.active_popup else {

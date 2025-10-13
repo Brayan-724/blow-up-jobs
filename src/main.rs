@@ -1,4 +1,5 @@
 #![feature(associated_type_defaults)]
+#![feature(char_max_len)]
 #![feature(impl_trait_in_assoc_type)]
 #![feature(generic_const_exprs)]
 #![feature(stmt_expr_attributes)]
@@ -65,7 +66,7 @@ async fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()
         }
 
         loop {
-            app.popup.update();
+            app::PopupsState::update(app);
 
             let job_tick = app.job_tick();
             let anim = app.anim.wait_tick();
