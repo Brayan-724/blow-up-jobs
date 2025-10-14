@@ -335,6 +335,7 @@ impl FrameExt for Frame<'_> {
 
 pub trait RectExt: Sized {
     fn reduce(self, size: impl Into<Size>) -> Self;
+    fn reduce_offset(self, size: impl Into<Size>) -> Self;
     fn outline(self, size: impl Into<Size>) -> Self;
     fn centered(self, size: impl Into<Size>) -> Self;
     fn set_height(self, value: u16) -> Self;
@@ -346,6 +347,16 @@ pub trait RectExt: Sized {
 impl RectExt for Rect {
     fn reduce(mut self, size: impl Into<Size>) -> Self {
         let size: Size = size.into();
+        self.width = self.width.saturating_sub(size.width);
+        self.height = self.height.saturating_sub(size.height);
+
+        self
+    }
+
+    fn reduce_offset(mut self, size: impl Into<Size>) -> Self {
+        let size: Size = size.into();
+        self.x = self.x.saturating_add(size.width);
+        self.y = self.y.saturating_add(size.height);
         self.width = self.width.saturating_sub(size.width);
         self.height = self.height.saturating_sub(size.height);
 
@@ -399,6 +410,7 @@ impl RectExt for Rect {
 pub trait OffsetExt: Sized {
     fn x(value: i32) -> Self;
     fn y(value: i32) -> Self;
+    fn both(value: i32) -> Self;
 }
 
 impl OffsetExt for Offset {
@@ -408,6 +420,10 @@ impl OffsetExt for Offset {
 
     fn y(value: i32) -> Self {
         Self { y: value, x: 0 }
+    }
+
+    fn both(value: i32) -> Self {
+        Self { y: value, x: value }
     }
 }
 

@@ -1,4 +1,6 @@
+mod edit;
 mod new_job;
+mod rename;
 
 use std::any::TypeId;
 use std::time::Duration;
@@ -8,7 +10,9 @@ use crate::app::App;
 use crate::ui::common::AnimatedIsland;
 use crate::ui::prelude::*;
 
+pub use edit::EditPopup;
 pub use new_job::NewJobPopup;
+pub use rename::RenamePopup;
 
 #[derive(Default)]
 pub struct SharedPopupState<Popups> {
@@ -204,6 +208,7 @@ impl_variadics::impl_variadics!(
                     let #T0: TypeId = TypeId::of::<#T0>();
                 )*
 
+
                 match TypeId::of::<T>() {
                     #(ty if ty == #T0 => true,)*
                     _ => false
@@ -238,3 +243,27 @@ impl_variadics::impl_variadics!(
         }
     };
 );
+
+pub fn action_buttons<const N: usize>(
+    buttons: [(&'static str, Color); N],
+    area: Rect,
+    buf: &mut Buffer,
+) {
+    let mut constraints = [Constraint::Length(0); N];
+
+    for i in 0..N {
+        const BUTTON_PADDING: u16 = 6;
+        constraints[i] = Constraint::Length(buttons[i].0.len() as u16 + BUTTON_PADDING);
+    }
+
+    let area = ratatui::layout::Layout::horizontal(constraints)
+        .flex(Flex::End)
+        .split(area);
+
+    for (i, (item, color)) in buttons.into_iter().enumerate() {
+        Text::raw(item)
+            .centered()
+            .bold()
+            .render(common::round_button(color, area[i], buf), buf);
+    }
+}

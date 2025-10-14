@@ -1,5 +1,6 @@
 #![feature(associated_type_defaults)]
 #![feature(char_max_len)]
+#![feature(if_let_guard)]
 #![feature(impl_trait_in_assoc_type)]
 #![feature(generic_const_exprs)]
 #![feature(stmt_expr_attributes)]

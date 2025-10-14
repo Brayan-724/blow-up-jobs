@@ -1,6 +1,6 @@
 use crossterm::event::KeyCode;
 
-use crate::app::App;
+use crate::app::{App, PopupsState};
 use crate::job::Job;
 use crate::ui::prelude::*;
 use crate::vterm;
@@ -31,7 +31,29 @@ impl Component for Job {
 
                 Action::Tick
             }
-            // KeyCode::Char('r') => {}
+            KeyCode::Char('k') if let Some(job) = state.current_job_mut() => {
+                job.kill().await;
+                Action::Tick
+            }
+            KeyCode::Char('m') if state.current_job.is_some() => {
+                PopupsState::open::<popup::RenamePopup>(state);
+                Action::Tick
+            }
+            KeyCode::Char('e') if state.current_job.is_some() => {
+                PopupsState::open::<popup::EditPopup>(state);
+                Action::Tick
+            }
+            KeyCode::Char('r') => {
+                let start = if let Some(job) = state.current_job_mut() {
+                    job.restart().await
+                } else {
+                    Ok(())
+                };
+
+                _ = start;
+
+                Action::Tick
+            }
             _ => Action::Noop,
         }
     }
@@ -53,8 +75,12 @@ impl Component for Job {
         .split(area.inner(Margin::both(1)));
 
         frame.draw(render_help, area[0], &state);
+        frame.draw(render_loading_bar, area[0], &state);
+
         frame.draw(render_job, area[1], state);
+
         frame.draw(render_footer, area[2], &state);
+        frame.draw(render_loading_bar, area[2], &state);
     }
 }
 
@@ -105,21 +131,20 @@ fn render_loading_bar(state: &App, area: Rect, buf: &mut Buffer) {
 }
 
 fn render_help(state: &App, area: Rect, buf: &mut Buffer) {
-    {
-        let area = area.inner(Margin::horizontal(1));
+    let area = area.inner(Margin::horizontal(1));
 
-        Line::from(vec![
-            "r".to_span().style(state.theme.keybind_accent),
-            "estart ".to_span().style(state.theme.normal),
-            "k".to_span().style(state.theme.keybind_accent),
-            "ill ".to_span().style(state.theme.normal),
-            "e".to_span().style(state.theme.keybind_accent),
-            "dit ".to_span().style(state.theme.normal),
-        ])
-        .render(area, buf);
-    }
-
-    render_loading_bar(state, area, buf);
+    Line::from(vec![
+        "r".to_span().style(state.theme.keybind_accent),
+        "estart ".to_span().style(state.theme.normal),
+        "k".to_span().style(state.theme.keybind_accent),
+        "ill ".to_span().style(state.theme.normal),
+        "e".to_span().style(state.theme.keybind_accent),
+        "dit ".to_span().style(state.theme.normal),
+        "rena".to_span().style(state.theme.normal),
+        "m".to_span().style(state.theme.keybind_accent),
+        "e ".to_span().style(state.theme.normal),
+    ])
+    .render(area, buf);
 }
 
 fn render_job(state: &mut App, frame: &mut Frame, area: Rect) {
@@ -210,36 +235,48 @@ fn render_vterm(job: &mut Job, frame: &mut Frame, area: Rect) {
 }
 
 fn render_footer(state: &App, frame: &mut Frame, area: Rect) {
-    {
-        frame.draw_stateless(
-            Line::from("Apika Luca".to_span().style(state.theme.accent))
-                .centered()
-                .bold(),
-            area,
-        );
+    let area = area.inner(Margin::horizontal(1));
+    frame.draw_stateless(
+        Line::from("Apika Luca".to_span().style(state.theme.accent))
+            .centered()
+            .bold(),
+        area,
+    );
 
-        let buf = frame.buffer_mut();
+    let Some(status) = state.current_job().and_then(|j| j.status()) else {
+        return;
+    };
 
-        let left = "Exit code: 2";
-        let right = "200ms";
+    let buf = frame.buffer_mut();
 
-        let area = Layout::horizontal([
-            Constraint::Length(left.len() as u16 + 2),
-            Constraint::Length(right.len() as u16 + 2),
-        ])
-        .flex(Flex::SpaceBetween)
-        .split(area);
+    let left0 = "Exit code: ";
+    let left1 = status.to_string();
+    let right = "200ms";
 
-        Line::raw(left)
-            .bg(Color::Red)
-            .bold()
-            .render(common::pill(Color::Red, area[0], buf), buf);
+    let area = Layout::horizontal([
+        Constraint::Length(left0.len() as u16 + left1.len() as u16 + 2),
+        Constraint::Length(right.len() as u16),
+    ])
+    .flex(Flex::SpaceBetween)
+    .split(area);
 
-        Line::raw(right)
-            .right_aligned()
-            .bold()
-            .render(common::pill(Color::Reset, area[1], buf), buf);
-    }
+    Line::raw(left0).bold().render(area[0], buf);
+    Line::raw(right).right_aligned().bold().render(area[1], buf);
 
-    render_loading_bar(state, area, frame.buffer_mut());
+    let exit_color = if status == 0 {
+        Color::Green
+    } else {
+        Color::Red
+    };
+
+    let exit_area = area[0]
+        .offset(Offset::x(left0.len() as i32))
+        .set_width(left1.len() as u16 + 2);
+
+    common::pill(exit_color, exit_area, buf);
+
+    Text::raw(left1)
+        .bold()
+        .bg(exit_color)
+        .render(exit_area.inner(Margin::horizontal(1)), buf);
 }

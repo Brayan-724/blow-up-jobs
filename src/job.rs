@@ -10,17 +10,27 @@ use thiserror::Error;
 use tokio::sync::RwLock;
 use vt100::Parser;
 
+// tty spawn error messages
+const NOT_FOUND_MESSAGE: &str = "No viable candidates found in PATH";
+const NOT_EXISTS_MESSAGE: &str = " it does not exist";
+const NOT_EXEC_MESSAGE: &str = " it is not executable";
+const IS_DIR_MESSAGE: &str = " it is a directory";
+
 #[derive(Debug, Error)]
 pub enum JobStartError {
-    #[error(transparent)]
+    #[error("IO error: {0}")]
     Io(#[from] io::Error),
-    #[error(transparent)]
+    #[error("Rustix error: {0}")]
     Rustix(#[from] rustix::io::Errno),
-    #[error("no command provided")]
+    #[error("No command provided")]
     NoCommand,
-    #[error("command not found: {0}")]
-    NotFound(String),
-    #[error(transparent)]
+    #[error("Command not found")]
+    NotFound,
+    #[error("File is not executable")]
+    NotExecutable,
+    #[error("Command is a directory")]
+    IsDir,
+    #[error("Cannot parse command")]
     Parse(#[from] shellish_parse::ParseError),
 }
 
@@ -32,6 +42,7 @@ pub struct JobRunning {
 }
 
 pub struct Job {
+    pub title: String,
     pub cmd: String,
     pub notify: Arc<tokio::sync::Notify>,
     pub running: Option<JobRunning>,
@@ -41,6 +52,7 @@ pub struct Job {
 impl Job {
     pub fn new(cmd: impl ToString) -> Self {
         Self {
+            title: cmd.to_string(),
             cmd: cmd.to_string(),
             notify: Default::default(),
             running: None,
@@ -48,10 +60,11 @@ impl Job {
         }
     }
 
-    pub fn is_running(&self) -> bool {
+    // None means that is running or is not started
+    pub fn status(&self) -> Option<u32> {
         self.running
             .as_ref()
-            .is_some_and(|r| r.status.blocking_read().is_none())
+            .and_then(|r| *r.status.blocking_read())
     }
 
     pub async fn start(&mut self) -> Result<(), JobStartError> {
@@ -71,8 +84,34 @@ impl Job {
 
         let mut cmd = portable_pty::CommandBuilder::new(cmd);
         cmd.args(parsed);
+        if let Ok(cwd) = std::env::current_dir() {
+            cmd.cwd(cwd);
+        }
 
-        let mut child = slave.spawn_command(cmd).unwrap();
+        let mut child = slave.spawn_command(cmd).map_err(|err| {
+            let err = err.to_string();
+            let Some(because_idx) = err.find("because") else {
+                unreachable!("malformed error (open an issue): {err}");
+            };
+
+            let mut offset = because_idx + 7;
+
+            if &err[offset..offset + 1] == ":" {
+                offset += 2;
+            }
+
+            let err_msg = err.chars().skip(offset).collect::<String>();
+
+            if err_msg.starts_with(NOT_FOUND_MESSAGE) || err_msg.starts_with(NOT_EXISTS_MESSAGE) {
+                JobStartError::NotFound
+            } else if err_msg.starts_with(NOT_EXEC_MESSAGE) {
+                JobStartError::NotExecutable
+            } else if err_msg.starts_with(IS_DIR_MESSAGE) {
+                JobStartError::IsDir
+            } else {
+                todo!("unhandled error (open an issue): {err_msg}");
+            }
+        })?;
         let pid = child.process_id().unwrap();
 
         let status = Arc::new(RwLock::new(None));
@@ -134,7 +173,7 @@ impl Job {
     }
 
     pub async fn kill(&mut self) -> bool {
-        let Some(job) = self.running.take() else {
+        let Some(ref job) = self.running else {
             return false;
         };
 

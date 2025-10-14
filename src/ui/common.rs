@@ -239,7 +239,7 @@ impl<'a, M, D: Drawable<'a, M>> Drawable<'a, M> for AnimatedIsland<'a, D, M, tru
 
 #[derive(Default)]
 pub struct InputState {
-    content: String,
+    pub content: String,
     /// Current cursor position
     cursor: usize,
     /// Horizontal scroll offset
@@ -296,6 +296,13 @@ impl InputState {
             }
             _ => false,
         }
+    }
+
+    pub fn change_all(&mut self, s: String) {
+        self.cursor = s.len();
+        self.content = s;
+        self.offset = 0;
+        _ = self.selection.take();
     }
 
     pub fn push(&mut self, c: char) {
@@ -406,38 +413,68 @@ impl InputState {
         self.cursor = 0;
         self.selection = Some((0, self.content.len()))
     }
+}
 
-    pub fn sync_cursor(&mut self, frame: &mut Frame, area: Rect) {
-        let cursor_offset = (self.cursor as isize) - self.offset as isize;
-        let area = area.inner(Margin::both(1));
-        let mut pos = area.as_position();
-        pos.x = pos.x.saturating_add(cursor_offset.unsigned_abs() as u16);
-        frame.set_cursor_position(pos);
+#[derive(Default)]
+pub struct Input {
+    style: Style,
+    border_style: Style,
+}
+
+impl Input {
+    pub fn border_style(mut self, style: impl Into<Style>) -> Self {
+        self.border_style = style.into();
+        self
     }
 }
 
-pub struct Input;
+impl<'s> Drawable<'s, Input> for Input {
+    type State = &'s mut InputState;
+    const STATEFUL: bool = true;
 
-impl StatefulWidget for Input {
-    type State = InputState;
+    fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
+        let area = area.set_height(3);
 
-    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        Block::new()
+            .borders(Borders::BOTTOM)
+            .border_style(self.border_style)
+            .render(area, frame.buffer_mut());
+
         let area = area.inner(Margin::both(1));
 
-        let cursor_offset = (state.cursor as isize) - state.offset as isize;
+        // Cursor scroll when out of bounds
+        let cursor_offset = state.cursor as isize - state.offset as isize;
 
         if cursor_offset >= area.width as isize {
             state.offset += (cursor_offset as usize).saturating_sub(area.width as usize);
         } else if cursor_offset < 0 as isize {
-            state.offset = state.offset.saturating_add_signed(cursor_offset);
+            state.offset = state.offset.saturating_sub(cursor_offset.unsigned_abs());
         }
 
+        // Scroll to inner view on resize
+        let end_offset =
+            state.content.len().saturating_sub(state.offset) as isize - area.width as isize;
+
+        if end_offset < 0 {
+            state.offset = state.offset.saturating_sub(end_offset.unsigned_abs())
+        }
+
+        // Update USER cursor position
+        let cursor_offset = (state.cursor as isize) - state.offset as isize;
+        let mut pos = area.as_position();
+        pos.x = pos.x.saturating_add(cursor_offset.unsigned_abs() as u16);
+        frame.set_cursor_position(pos);
+
+        // Viewport area
         let viewport_start = state.offset;
-        let viewport_end = state.offset + (area.width as usize).min(state.content.len());
+        let viewport_end = (state.offset + area.width as usize).min(state.content.len());
 
         if let Some(str) = state.content.get(viewport_start..viewport_end) {
-            Text::raw(str).render(area, buf);
+            Text::raw(str)
+                .style(self.style)
+                .render(area, frame.buffer_mut());
 
+            // Render selection
             if let Some((start, len)) = state.selection {
                 let end = (start + len)
                     .saturating_sub(viewport_start)
@@ -453,7 +490,8 @@ impl StatefulWidget for Input {
 
                 let start = start as u16 + area.x;
                 for x in 0..len as u16 {
-                    buf[(start + x, area.y)].set_style(Style::new().fg(Color::Cyan).reversed());
+                    frame.buffer_mut()[(start + x, area.y)]
+                        .set_style(Style::new().fg(Color::Cyan).reversed());
                 }
             }
         }

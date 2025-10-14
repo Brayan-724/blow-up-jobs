@@ -15,18 +15,13 @@ pub fn render(state: &mut App, area: Rect, frame: &mut Frame) {
 }
 
 fn render_sidebar(state: &App, frame: &mut Frame, area: Rect) {
-    let items = [
-        "Process ABCDEFGHIJKLMNOPQ",
-        "Process B",
-        "Process C",
-        "Process C",
-    ];
+    let items = state.jobs.len() as u16;
 
     let area = area
         .inner_y(2)
         .inner_x(1)
         .reduce((2, 0))
-        .set_height(items.len() as u16 * 2)
+        .set_height(items * 2)
         .offset(Offset::y(1 - state.anim.range(95..100).map(0..2i32)));
 
     frame.draw(
@@ -39,31 +34,29 @@ fn render_sidebar(state: &App, frame: &mut Frame, area: Rect) {
 }
 
 fn render_sidebar_jobs(state: &App, frame: &mut Frame, area: Rect) {
-    let items = [
-        "Process ABCDEFGHIJKLMNOPQ",
-        "Process B",
-        "Process C",
-        "Process C",
-    ];
-
-    for (idx, item) in items.iter().enumerate() {
+    for (idx, item) in state.jobs.iter().enumerate() {
         let area = area.inner_y(idx as i32 * 2).set_height(1);
 
-        frame.draw(
-            common::Blinker::new(
-                Line::from(vec![
+        {
+            let content = if let Some(status) = item.status() {
+                vec![
                     "200ms ".to_span(),
-                    "●".to_span().fg(if idx % 2 == 0 {
+                    "●".to_span().fg(if status == 0 {
                         Color::Green
                     } else {
                         Color::Red
                     }),
-                ])
-                .right_aligned(),
-            ),
-            area.inner_y(1).reduce((1, 0)).set_height(1),
-            &state.anim,
-        );
+                ]
+            } else {
+                vec!["●".to_span().fg(Color::Gray)]
+            };
+
+            frame.draw(
+                common::Blinker::new(Line::from(content).right_aligned()),
+                area.inner_y(1).reduce((1, 0)).set_height(1),
+                &state.anim,
+            );
+        }
 
         let style = if state.current_job.is_some_and(|job| job == idx) {
             state.theme.job_selected
@@ -74,7 +67,7 @@ fn render_sidebar_jobs(state: &App, frame: &mut Frame, area: Rect) {
         let bg = style.bg.unwrap_or(Color::Reset);
 
         let area = common::pill(bg, area, frame.buffer_mut());
-        frame.draw_stateless(item.to_text().style(style), area);
+        frame.draw_stateless(item.title.to_text().style(style), area);
     }
 }
 

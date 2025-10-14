@@ -1,9 +1,11 @@
 use crate::app::App;
+use crate::job::{Job, JobStartError};
 use crate::ui::prelude::*;
 
 #[derive(Default)]
 pub struct NewJobPopup {
     input: common::InputState,
+    last_err: Option<JobStartError>,
 }
 
 impl Component for NewJobPopup {
@@ -11,6 +13,7 @@ impl Component for NewJobPopup {
 
     fn on_mount(state: &mut Self::State) {
         state.popup_new_job.input.clear();
+        state.popup_new_job.last_err = None;
     }
 
     async fn handle_key_events(state: &mut Self::State, key: KeyEvent) -> Action {
@@ -21,7 +24,22 @@ impl Component for NewJobPopup {
             KeyEvent {
                 code: KeyCode::Enter,
                 ..
-            } => Action::Quit,
+            } => {
+                let content = state.popup_new_job.input.content.clone();
+
+                let mut job = Job::new(content);
+
+                if let Err(err) = job.start().await {
+                    state.popup_new_job.last_err = Some(err);
+                    Action::Tick
+                } else {
+                    let idx = state.jobs.len();
+                    state.jobs.push(job);
+                    state.current_job = Some(idx);
+
+                    Action::Quit
+                }
+            }
             _ if state.popup_new_job.input.handle_key(key) => Action::Tick,
             _ => Action::Noop,
         }
@@ -29,42 +47,37 @@ impl Component for NewJobPopup {
 
     fn draw(state: &mut Self::State, frame: &mut Frame, area: Rect) {
         let area = area.inner(Margin::new(1, 0));
-        let area = Layout::vertical([
+        let [title, input, error, _, buttons] = Layout::vertical([
+            Constraint::Length(1), // Title
+            Constraint::Length(3), // Input
+            Constraint::Length(2), // Error
             Constraint::Length(1),
-            Constraint::Length(3),
-            Constraint::Percentage(100),
-            Constraint::Length(1),
+            Constraint::Length(1), // Buttons
         ])
         .split(area);
 
-        frame.draw_stateless(Text::raw("New Job").style(state.theme.normal), area[0]);
+        frame.draw_stateless(Text::raw("New Job").style(state.theme.normal), title);
 
-        frame.draw_stateless(
-            Block::new()
-                .borders(Borders::BOTTOM)
-                .border_style(state.theme.border.dim()),
-            area[1],
+        frame.draw(
+            common::Input::default().border_style(state.theme.border.dim()),
+            input,
+            &mut state.popup_new_job.input,
         );
 
-        {
-            common::Input.render(area[1], frame.buffer_mut(), &mut state.popup_new_job.input);
-            state.popup_new_job.input.sync_cursor(frame, area[1]);
+        if let Some(ref err) = state.popup_new_job.last_err {
+            let err_msg = err.to_text();
+
+            Paragraph::new(err_msg)
+                .wrap(Wrap { trim: true })
+                .fg(Color::LightRed)
+                .render(error, frame.buffer_mut());
         }
 
-        {
-            let area = Layout::horizontal([Constraint::Length(11), Constraint::Length(11)])
-                .flex(Flex::End)
-                .split(area[3]);
-
-            Text::raw("ESC").centered().bold().render(
-                common::round_button(Color::LightRed, area[0], frame.buffer_mut()),
-                frame.buffer_mut(),
-            );
-            Text::raw("Enter").centered().bold().render(
-                common::round_button(Color::Blue, area[1], frame.buffer_mut()),
-                frame.buffer_mut(),
-            );
-        }
+        popup::action_buttons(
+            [("ESC", Color::LightRed), ("Enter", Color::Blue)],
+            buttons,
+            frame.buffer_mut(),
+        );
     }
 }
 
@@ -79,7 +92,7 @@ impl popup::Popup for NewJobPopup {
     ) -> popup::PopupBuilder<'a> {
         island
             .direction(Side::Left)
-            .reserve(area.set_width(35).centered((35, 8)).offset(Offset::x(10)))
+            .reserve(area.reduce_offset((10, 10)).set_width(35).centered((35, 8)))
             .border_style(app.theme.border)
     }
 }

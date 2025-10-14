@@ -10,7 +10,7 @@ use crate::theme::AppTheme;
 use crate::ui::popup::{self, SharedPopupState};
 use crate::ui::{Action, Component};
 
-type Popups = (popup::NewJobPopup,);
+type Popups = (popup::EditPopup, popup::NewJobPopup, popup::RenamePopup);
 pub type PopupsState = SharedPopupState<Popups>;
 
 #[derive(Default)]
@@ -21,7 +21,9 @@ pub struct App {
     pub anim: AnimationTicker,
     pub popup: PopupsState,
 
+    pub popup_edit: popup::EditPopup,
     pub popup_new_job: popup::NewJobPopup,
+    pub popup_rename: popup::RenamePopup,
 }
 
 impl App {
