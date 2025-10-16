@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::Frame;
@@ -19,6 +20,7 @@ pub struct App {
     pub jobs: Vec<Job>,
     pub theme: Arc<AppTheme>,
     pub anim: AnimationTicker,
+    pub sidebar_anim: AnimationTicker,
     pub popup: PopupsState,
 
     pub popup_edit: popup::EditPopup,
@@ -32,9 +34,28 @@ impl App {
         anim.end_tick = 120;
         anim.start();
 
+        let mut sidebar_anim = AnimationTicker::default();
+        sidebar_anim.end_tick = 40;
+
         Self {
             anim,
+            sidebar_anim,
             ..Default::default()
+        }
+    }
+
+    // Start sidebar animation on start with conditions
+    pub fn update_sidebar(&mut self) {
+        if self.sidebar_anim.running() {
+            return;
+        }
+
+        let anim_tick = self.anim.tick;
+        let is_on_bounds = anim_tick == 60 || anim_tick == 100;
+
+        if is_on_bounds && !self.jobs.is_empty() {
+            self.sidebar_anim.start();
+            self.sidebar_anim.next_tick(Duration::from_millis(20));
         }
     }
 
@@ -46,7 +67,18 @@ impl App {
         self.jobs.get_mut(self.current_job?)
     }
 
-    /// Returns whether needs to waits
+    pub fn push_job(&mut self, job: Job) {
+        if self.jobs.is_empty() {
+            self.sidebar_anim.start();
+            self.sidebar_anim.next_tick(Duration::from_millis(20));
+        }
+
+        let idx = self.jobs.len();
+        self.jobs.push(job);
+        self.current_job = Some(idx);
+    }
+
+    /// Returns whenever needs to waits
     pub async fn job_tick(&self) -> bool {
         if let Some(job) = self.current_job() {
             job.notify.notified().await;

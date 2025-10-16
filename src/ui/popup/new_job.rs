@@ -33,9 +33,7 @@ impl Component for NewJobPopup {
                     state.popup_new_job.last_err = Some(err);
                     Action::Tick
                 } else {
-                    let idx = state.jobs.len();
-                    state.jobs.push(job);
-                    state.current_job = Some(idx);
+                    state.push_job(job);
 
                     Action::Quit
                 }

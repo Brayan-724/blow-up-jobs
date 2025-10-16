@@ -22,14 +22,14 @@ fn render_sidebar(state: &App, frame: &mut Frame, area: Rect) {
         .inner_x(1)
         .reduce((2, 0))
         .set_height(items * 2)
-        .offset(Offset::y(1 - state.anim.range(95..100).map(0..2i32)));
+        .offset(Offset::y(1 - state.sidebar_anim.range(35..40).map(0..2i32)));
 
     frame.draw(
         common::AnimatedIsland::new(render_sidebar_jobs)
             .direction(Side::Left)
             .border_style(state.theme.border),
         area,
-        (state.anim.range(60..89), state),
+        (state.sidebar_anim.range(0..29), state),
     );
 }
 

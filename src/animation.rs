@@ -11,7 +11,7 @@ pub struct AnimationTicker {
     ended: bool,
     is_debugging: bool,
     reverse: bool,
-    tick: usize,
+    pub tick: usize,
     tick_duration: Option<(Duration, Instant)>,
 
     // Component things
@@ -21,6 +21,10 @@ pub struct AnimationTicker {
 impl AnimationTicker {
     pub fn debug(&mut self) {
         self.is_debugging = true;
+    }
+
+    pub fn running(&self) -> bool {
+        self.tick_duration.is_some()
     }
 
     pub fn ended(&self) -> bool {
@@ -36,13 +40,15 @@ impl AnimationTicker {
             return Action::Noop;
         }
 
-        if let Some((duration, tick_end)) = self.tick_duration {
-            if Instant::now() < tick_end {
-                return Action::Noop;
-            } else {
-                self.tick_duration = Some((duration, Instant::now() + duration))
-            }
+        let Some((duration, tick_end)) = self.tick_duration else {
+            return Action::Noop;
+        };
+
+        if Instant::now() < tick_end {
+            return Action::Noop;
         }
+
+        self.tick_duration = Some((duration, Instant::now() + duration));
 
         if self.reverse {
             if self.tick == 0 {
@@ -166,7 +172,7 @@ impl AnimationTick {
     {
         let range_len = self.range();
         if range_len == 0 || target.end <= target.start {
-            return Cast::cast(0);
+            return target.start;
         }
 
         let target_len: f32 = Cast::cast(target.end - target.start);
