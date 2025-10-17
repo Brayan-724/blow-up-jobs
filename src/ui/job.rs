@@ -15,8 +15,7 @@ impl Component for Job {
                 state.current_job = state
                     .current_job
                     .take()
-                    .map(|i| i + 1)
-                    .unwrap_or(0)
+                    .map_or(0, |i| i + 1)
                     .checked_rem(state.jobs.len());
 
                 Action::Tick
@@ -32,7 +31,7 @@ impl Component for Job {
                 Action::Tick
             }
             KeyCode::Char('k') if let Some(job) = state.current_job_mut() => {
-                job.kill().await;
+                job.kill();
                 Action::Tick
             }
             KeyCode::Char('m') if state.current_job.is_some() => {
@@ -45,7 +44,7 @@ impl Component for Job {
             }
             KeyCode::Char('r') => {
                 let start = if let Some(job) = state.current_job_mut() {
-                    job.restart().await
+                    job.restart()
                 } else {
                     Ok(())
                 };
@@ -74,18 +73,18 @@ impl Component for Job {
         ])
         .split(area.inner(Margin::both(1)));
 
-        frame.draw(render_help, area[0], &state);
-        frame.draw(render_loading_bar, area[0], &state);
+        frame.draw(render_help, area[0], state);
+        frame.draw(render_loading_bar, area[0], state);
 
         frame.draw(render_job, area[1], state);
 
-        frame.draw(render_footer, area[2], &state);
-        frame.draw(render_loading_bar, area[2], &state);
+        frame.draw(render_footer, area[2], state);
+        frame.draw(render_loading_bar, area[2], state);
     }
 }
 
 fn render_loading_bar(state: &App, area: Rect, buf: &mut Buffer) {
-    if !state.anim.ended() {
+    if !state.anim.stopped() {
         let transparent_area = if state.anim.is_on_range(80..121) {
             area.inner(Margin::horizontal(
                 area.width - state.anim.range(80..120).map(0..area.width),
@@ -166,25 +165,16 @@ fn render_welcome_screen(state: &mut App, area: Rect, buf: &mut Buffer) {
     ])
     .split(area);
 
-    Text::from_iter(
-        [
-            Line::from_iter(
-                [
-                    Span::from("Welcome").style(state.theme.accent),
-                    Span::from(" to your").style(state.theme.normal),
-                ]
-                .into_iter(),
-            ),
-            Line::from_iter(
-                [
-                    Span::from("blowing up ").style(state.theme.normal),
-                    Span::from("jobs").style(state.theme.accent),
-                ]
-                .into_iter(),
-            ),
-        ]
-        .into_iter(),
-    )
+    Text::from_iter([
+        Line::from_iter([
+            Span::from("Welcome").style(state.theme.accent),
+            Span::from(" to your").style(state.theme.normal),
+        ]),
+        Line::from_iter([
+            Span::from("blowing up ").style(state.theme.normal),
+            Span::from("jobs").style(state.theme.accent),
+        ]),
+    ])
     .centered()
     .render(area[1], buf);
 
@@ -192,25 +182,16 @@ fn render_welcome_screen(state: &mut App, area: Rect, buf: &mut Buffer) {
         .flex(Flex::Center)
         .split(area[3])[0];
 
-    Text::from_iter(
-        [
-            Line::from_iter(
-                [
-                    Span::from("<Enter>").style(state.theme.accent),
-                    Span::from(" Recover jobs").style(state.theme.normal),
-                ]
-                .into_iter(),
-            ),
-            Line::from_iter(
-                [
-                    Span::from("<Tab>").style(state.theme.accent),
-                    Span::from(" Go to first job").style(state.theme.normal),
-                ]
-                .into_iter(),
-            ),
-        ]
-        .into_iter(),
-    )
+    Text::from_iter([
+        Line::from_iter([
+            Span::from("<Enter>").style(state.theme.accent),
+            Span::from(" Recover jobs").style(state.theme.normal),
+        ]),
+        Line::from_iter([
+            Span::from("<Tab>").style(state.theme.accent),
+            Span::from(" Go to first job").style(state.theme.normal),
+        ]),
+    ])
     .render(area, buf);
 }
 
@@ -243,7 +224,7 @@ fn render_footer(state: &App, frame: &mut Frame, area: Rect) {
         area,
     );
 
-    let Some(status) = state.current_job().and_then(|j| j.status()) else {
+    let Some(status) = state.current_job().and_then(Job::status) else {
         return;
     };
 
@@ -270,7 +251,7 @@ fn render_footer(state: &App, frame: &mut Frame, area: Rect) {
     };
 
     let exit_area = area[0]
-        .offset(Offset::x(left0.len() as i32))
+        .offset(Offset::x(left0.len().casted::<i32>()))
         .set_width(left1.len() as u16 + 2);
 
     common::pill(exit_color, exit_area, buf);

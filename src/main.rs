@@ -7,6 +7,15 @@
 #![feature(try_trait_v2)]
 // generic_const_exprs
 #![allow(incomplete_features)]
+#![allow(
+    clippy::cast_possible_truncation,
+    reason = "A lot of casting is needed in ratatui"
+)]
+#![allow(
+    clippy::used_underscore_binding,
+    reason = "Macros use underscore binding to prevent `unused-*` warnings"
+)]
+#![allow(clippy::similar_names)]
 
 extern crate crossterm;
 extern crate ratatui;
@@ -22,7 +31,6 @@ mod variadicts;
 mod vterm;
 
 use std::io;
-use std::time::Duration;
 
 use ratatui::DefaultTerminal;
 
@@ -60,13 +68,13 @@ async fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()
             app.update_sidebar();
             app.anim.wait_tick().await;
 
-            if app.anim.ended() {
+            if app.anim.stopped() {
                 break 'draw;
-            } else {
-                app.sidebar_anim.update();
-                app.anim.update();
-                continue 'draw;
             }
+
+            app.sidebar_anim.update();
+            app.anim.update();
+            continue 'draw;
         }
 
         loop {
@@ -101,7 +109,6 @@ async fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()
                     app.sidebar_anim.reverse();
                     app.anim.reverse();
                     app.anim.start();
-                    app.anim.next_tick(Duration::from_millis(20));
                     quitting = true;
                     continue 'draw;
                 }
@@ -110,7 +117,7 @@ async fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()
         }
     }
 
-    app.kill_jobs().await;
+    app.kill_jobs();
 
     Ok(())
 }

@@ -24,7 +24,7 @@ impl Default for AppTheme {
 
 impl From<UserTheme> for AppTheme {
     fn from(user: UserTheme) -> Self {
-        let accent = user.accent.unwrap_or_else(Style::new);
+        let accent = user.accent.unwrap_or_default();
         let accent_bg = accent.bg.unwrap_or(Color::Reset);
         let accent_fg = accent.fg.unwrap_or(Color::Reset);
 
@@ -37,12 +37,12 @@ impl From<UserTheme> for AppTheme {
                     .not_underlined()
                     .bg(Color::Reset)
             }),
-            job_normal: user.job_normal.unwrap_or_else(Style::new),
+            job_normal: user.job_normal.unwrap_or_default(),
             job_selected: user
                 .job_selected
                 .unwrap_or_else(|| accent.fg(accent_bg).bg(accent_fg)),
             keybind_accent: user.keybind_accent.unwrap_or(accent),
-            normal: user.normal.unwrap_or_else(Style::new),
+            normal: user.normal.unwrap_or_default(),
         }
     }
 }

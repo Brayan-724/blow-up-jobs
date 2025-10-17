@@ -35,7 +35,7 @@ fn render_sidebar(state: &App, frame: &mut Frame, area: Rect) {
 
 fn render_sidebar_jobs(state: &App, frame: &mut Frame, area: Rect) {
     for (idx, item) in state.jobs.iter().enumerate() {
-        let area = area.inner_y(idx as i32 * 2).set_height(1);
+        let area = area.inner_y(idx.casted::<i32>() * 2).set_height(1);
 
         {
             let content = if let Some(status) = item.status() {

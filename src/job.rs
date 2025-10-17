@@ -10,6 +10,8 @@ use thiserror::Error;
 use tokio::sync::RwLock;
 use vt100::Parser;
 
+use crate::ui::Casted;
+
 // tty spawn error messages
 const NOT_FOUND_MESSAGE: &str = "No viable candidates found in PATH";
 const NOT_EXISTS_MESSAGE: &str = " it does not exist";
@@ -50,11 +52,11 @@ pub struct Job {
 }
 
 impl Job {
-    pub fn new(cmd: impl ToString) -> Self {
+    pub fn new(cmd: &impl ToString) -> Self {
         Self {
             title: cmd.to_string(),
             cmd: cmd.to_string(),
-            notify: Default::default(),
+            notify: Arc::default(),
             running: None,
             size: Size::new(80, 24),
         }
@@ -67,7 +69,7 @@ impl Job {
             .and_then(|r| *r.status.blocking_read())
     }
 
-    pub async fn start(&mut self) -> Result<(), JobStartError> {
+    pub fn start(&mut self) -> Result<(), JobStartError> {
         let pty = native_pty_system();
         let PtyPair { slave, master } = pty
             .openpty(portable_pty::PtySize {
@@ -96,7 +98,7 @@ impl Job {
 
             let mut offset = because_idx + 7;
 
-            if &err[offset..offset + 1] == ":" {
+            if &err[offset..=offset] == ":" {
                 offset += 2;
             }
 
@@ -172,22 +174,21 @@ impl Job {
         Ok(())
     }
 
-    pub async fn kill(&mut self) -> bool {
+    pub fn kill(&mut self) -> bool {
         let Some(ref job) = self.running else {
             return false;
         };
 
         rustix::process::kill_process(
-            unsafe { Pid::from_raw_unchecked(job.pid as i32) },
+            unsafe { Pid::from_raw_unchecked(job.pid.casted::<i32>()) },
             Signal::KILL,
         )
         .is_ok()
     }
 
-    pub async fn restart(&mut self) -> Result<(), JobStartError> {
-        self.kill().await;
-
-        self.start().await
+    pub fn restart(&mut self) -> Result<(), JobStartError> {
+        self.kill();
+        self.start()
     }
 
     pub fn with_cmd(&mut self, cmd: String) {

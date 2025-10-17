@@ -31,11 +31,12 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let mut anim = AnimationTicker::default();
-        anim.end_tick = 120;
+        anim.len = 120;
         anim.start();
 
         let mut sidebar_anim = AnimationTicker::default();
-        sidebar_anim.end_tick = 40;
+        sidebar_anim.len = 40;
+        sidebar_anim.next_tick(Duration::from_millis(20));
 
         Self {
             anim,
@@ -55,7 +56,6 @@ impl App {
 
         if is_on_bounds && !self.jobs.is_empty() {
             self.sidebar_anim.start();
-            self.sidebar_anim.next_tick(Duration::from_millis(20));
         }
     }
 
@@ -70,7 +70,6 @@ impl App {
     pub fn push_job(&mut self, job: Job) {
         if self.jobs.is_empty() {
             self.sidebar_anim.start();
-            self.sidebar_anim.next_tick(Duration::from_millis(20));
         }
 
         let idx = self.jobs.len();
@@ -89,14 +88,10 @@ impl App {
         }
     }
 
-    pub async fn kill_jobs(&mut self) {
-        tokio_scoped::scope(|scope| {
-            for job in &mut self.jobs {
-                scope.spawn(async {
-                    job.kill().await;
-                });
-            }
-        });
+    pub fn kill_jobs(&mut self) {
+        for job in &mut self.jobs {
+            job.kill();
+        }
     }
 }
 
@@ -111,7 +106,7 @@ impl Component for App {
             Event::Mouse(mouse_event) => Self::handle_mouse_events(state, mouse_event).await?,
             Event::Resize(_, _) => Action::Tick?,
             _ => {}
-        };
+        }
 
         Self::propagate_event(state, event).await
     }

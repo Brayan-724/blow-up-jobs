@@ -27,9 +27,9 @@ impl Component for NewJobPopup {
             } => {
                 let content = state.popup_new_job.input.content.clone();
 
-                let mut job = Job::new(content);
+                let mut job = Job::new(&content);
 
-                if let Err(err) = job.start().await {
+                if let Err(err) = job.start() {
                     state.popup_new_job.last_err = Some(err);
                     Action::Tick
                 } else {

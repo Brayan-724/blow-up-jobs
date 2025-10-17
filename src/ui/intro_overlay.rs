@@ -10,26 +10,30 @@ pub fn render(state: &mut App, frame: &mut Frame) {
 
     let tick = 49 - *state.anim.range(1..50);
 
-    let term_w = frame.area().width as i32;
-    let term_h = frame.area().height as i32;
+    let term_w = frame.area().width.casted::<i32>();
+    let term_h = frame.area().height.casted::<i32>();
 
     // Take the maximum difference of ticks in the borders of screen
     let max_tick = {
         let (vx, vy) = (term_w / 2, term_h / 2);
-        (vx as f32 + vy as f32).log2()
-    } as usize;
+        (vx.casted::<f32>() + vy.casted::<f32>())
+            .log2()
+            .casted::<usize>()
+    };
 
     for y in 0..term_h {
         for x in 0..term_w {
-            let cell = &mut frame.buffer_mut()[(x as u16, y as u16)];
+            let cell = &mut frame.buffer_mut()[(x.casted::<u16>(), y.casted::<u16>())];
 
             let (vx, vy) = (x - term_w / 2, y - term_h / 2);
 
-            let Some(c) = render_char_at(
-                (tick + ((vx as f32 + vy as f32).abs().log2() as usize)).saturating_sub(max_tick),
-                vx,
-                vy,
-            ) else {
+            let offset_tick = (vx.casted::<f32>() + vy.casted::<f32>())
+                .abs()
+                .log2()
+                .casted::<usize>();
+
+            let Some(c) = render_char_at((tick + offset_tick).saturating_sub(max_tick), vx, vy)
+            else {
                 continue;
             };
 
@@ -74,13 +78,13 @@ fn render_char_at(level: usize, x: i32, y: i32) -> Option<char> {
         2 => {
             let y = y.saturating_abs() as usize % 2;
 
-            let x = (if y == 0 { 1 } else { 0 } + x.saturating_abs()) as usize % 2;
+            let x = (i32::from(y == 0) + x.saturating_abs()).casted::<usize>() % 2;
 
             if x == 0 {
                 return Some(c_al);
-            } else {
-                return Some(c_ar);
             }
+
+            return Some(c_ar);
         }
         _ => {}
     }

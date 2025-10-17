@@ -81,12 +81,12 @@ macro_rules! all_tuples_repeated {
 }
 
 /// ```ignore
-/// dual_permutation!(macro, [x, y, z]);
+/// dual_combination!(macro, [x, y, z]);
 /// => macro!(x, y);
 /// => macro!(x, z);
 /// => macro!(y, z);
 ///
-/// dual_permutation!(macro, [x, y, z, w]);
+/// dual_combination!(macro, [x, y, z, w]);
 /// => macro!(x, y);
 /// => macro!(x, z);
 /// => macro!(x, w);
@@ -94,27 +94,27 @@ macro_rules! all_tuples_repeated {
 /// => macro!(y, w);
 /// => macro!(z, w);
 /// ```
-macro_rules! dual_permutation {
+macro_rules! dual_combination {
     ($m:ident, [$start:tt, $($tail:tt),+ $(,)?]) => {
-        $crate::variadicts::dual_permutation!([$m] branch [$start] [$([$tail])+]);
+        $crate::variadicts::dual_combination!([$m] branch [$start] [$([$tail])+]);
     };
 
     ([$m:ident] $_:ident [$start:tt] []) => {};
 
     ([$m:ident] branch [$start:tt] [[$item:tt] $([$tail:tt])*]) => {
-        $crate::variadicts::dual_permutation!([$m] no_branch [$start] [$([$tail])*]);
-        $crate::variadicts::dual_permutation!([$m] branch [$item] [$([$tail])*]);
+        $crate::variadicts::dual_combination!([$m] no_branch [$start] [$([$tail])*]);
+        $crate::variadicts::dual_combination!([$m] branch [$item] [$([$tail])*]);
         $m!($start, $item);
     };
 
     ([$m:ident] no_branch [$start:tt] [[$item:tt] $([$tail:tt])*]) => {
-        $crate::variadicts::dual_permutation!([$m] no_branch [$start] [$([$tail])*]);
+        $crate::variadicts::dual_combination!([$m] no_branch [$start] [$([$tail])*]);
         $m!($start, $item);
     };
 }
 
 pub(crate) use all_tuples_repeated;
-pub(crate) use dual_permutation;
+pub(crate) use dual_combination;
 pub(crate) use indexed_slice;
 pub(crate) use indexed_tuple;
 pub(crate) use indexed_vec;

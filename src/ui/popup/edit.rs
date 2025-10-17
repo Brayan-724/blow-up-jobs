@@ -34,7 +34,7 @@ impl Component for EditPopup {
 
                 if let Some(job) = state.current_job_mut() {
                     job.with_cmd(content);
-                    _ = job.restart().await;
+                    _ = job.restart();
                 }
 
                 Action::Quit

@@ -3,7 +3,6 @@ mod new_job;
 mod rename;
 
 use std::any::TypeId;
-use std::time::Duration;
 
 use crate::animation::AnimationTicker;
 use crate::app::App;
@@ -24,7 +23,7 @@ pub struct SharedPopupState<Popups> {
 
 impl<Popups: PopupBundle> SharedPopupState<Popups> {
     pub fn update(state: &mut App) {
-        if state.popup.anim.ended() && state.popup.quitting {
+        if state.popup.anim.stopped() && state.popup.quitting {
             if let Some(popup) = state.popup.active_popup.take() {
                 let iter = type_iter!(<T, 'a> once (state: &'a mut App) {
                     T::on_mount(state);
@@ -51,9 +50,8 @@ impl<Popups: PopupBundle> SharedPopupState<Popups> {
         }
 
         state.popup.active_popup = Some(TypeId::of::<T>());
-        state.popup.anim.end_tick = T::DURATION;
+        state.popup.anim.len = T::DURATION;
         state.popup.anim.start();
-        state.popup.anim.next_tick(Duration::from_millis(20));
 
         T::on_mount(state);
     }
@@ -66,7 +64,6 @@ impl<Popups: PopupBundle> SharedPopupState<Popups> {
 
         self.anim.reverse();
         self.anim.start();
-        self.anim.next_tick(Duration::from_millis(20));
         self.quitting = true;
     }
 }
@@ -83,7 +80,7 @@ impl<Popups: PopupBundle> Component for SharedPopupState<Popups> {
             return Action::Noop;
         };
 
-        let auto_close_event = type_iter!(<T> once () -> bool {
+        let auto_close_event = type_iter!(<T: Popup> once () -> bool {
             T::AUTO_CLOSE_EVENT
         });
 
@@ -124,7 +121,6 @@ impl<Popups: PopupBundle> Component for SharedPopupState<Popups> {
             Action::Quit => {
                 state.popup.anim.reverse();
                 state.popup.anim.start();
-                state.popup.anim.next_tick(Duration::from_millis(20));
                 state.popup.quitting = true;
                 Action::Tick
             }
@@ -140,7 +136,7 @@ impl<Popups: PopupBundle> Component for SharedPopupState<Popups> {
         let iter = type_iter!(<T, 'a, 'f, 'fi> once (state: &'a mut App, frame: &'f mut Frame<'fi>, area: Rect) {
             let island = PopupBuilder::new::<T>();
             let island = T::build(island, state, area);
-            island.draw(state, frame)
+            island.draw(state, frame);
         });
 
         Popups::find(popup, iter);
@@ -200,7 +196,7 @@ pub trait PopupBundle {
 }
 
 impl_variadics::impl_variadics!(
-    ..10 "T*" => {
+    1..10 "T*" => {
         impl<#(#T0: Popup + 'static,)*> PopupBundle for (#(#T0,)*) {
             fn get<T: 'static>() -> bool {
                 #(
@@ -208,11 +204,10 @@ impl_variadics::impl_variadics!(
                     let #T0: TypeId = TypeId::of::<#T0>();
                 )*
 
+                let _ty = TypeId::of::<T>();
 
-                match TypeId::of::<T>() {
-                    #(ty if ty == #T0 => true,)*
-                    _ => false
-                }
+                #[allow(clippy::nonminimal_bool)]
+                { false #(|| _ty == #T0)* }
             }
 
             fn find<It: TypeIteratorOnce>(target: TypeId, _iter: It) -> Option<It::Item>

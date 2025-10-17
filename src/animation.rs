@@ -3,16 +3,25 @@ use std::time::Duration;
 
 use tokio::time::Instant;
 
-use crate::ui::{Action, Arithmetic, Cast};
+use crate::ui::{Action, Arithmetic, Cast, Casted};
+
+#[derive(Default)]
+pub enum AnimationState {
+    #[default]
+    Stop,
+    Running {
+        next_tick: Instant,
+    },
+}
 
 #[derive(Default)]
 pub struct AnimationTicker {
-    pub end_tick: usize,
-    ended: bool,
     is_debugging: bool,
+    pub len: usize,
     reverse: bool,
+    state: AnimationState,
     pub tick: usize,
-    tick_duration: Option<(Duration, Instant)>,
+    tick_duration: Duration,
 
     // Component things
     pub render_blink: bool,
@@ -24,31 +33,26 @@ impl AnimationTicker {
     }
 
     pub fn running(&self) -> bool {
-        self.tick_duration.is_some()
+        matches!(self.state, AnimationState::Running { .. })
     }
 
-    pub fn ended(&self) -> bool {
-        self.ended
+    pub fn stopped(&self) -> bool {
+        matches!(self.state, AnimationState::Stop)
     }
 
     pub fn tick(&self) -> AnimationTick {
-        AnimationTick::new(self.tick, 0..self.end_tick)
+        AnimationTick::new(self.tick, 0..self.len)
     }
 
     pub fn update(&mut self) -> Action {
-        if self.ended {
-            return Action::Noop;
+        match self.state {
+            AnimationState::Running { next_tick } if Instant::now() < next_tick => {
+                self.state = AnimationState::Running {
+                    next_tick: Instant::now() + self.tick_duration,
+                };
+            }
+            _ => return Action::Noop,
         }
-
-        let Some((duration, tick_end)) = self.tick_duration else {
-            return Action::Noop;
-        };
-
-        if Instant::now() < tick_end {
-            return Action::Noop;
-        }
-
-        self.tick_duration = Some((duration, Instant::now() + duration));
 
         if self.reverse {
             if self.tick == 0 {
@@ -60,7 +64,7 @@ impl AnimationTicker {
         } else {
             self.tick += 1;
 
-            if self.tick >= self.end_tick {
+            if self.tick >= self.len {
                 self.end();
             }
         }
@@ -81,18 +85,17 @@ impl AnimationTicker {
     }
 
     /// Start animation.
-    /// Set tick duration as [Duration::ZERO]
+    /// Set tick duration as [`Duration::ZERO`]
     pub fn start(&mut self) {
-        self.ended = false;
         self.render_blink = false;
-        self.next_tick(Duration::ZERO);
+        self.state = AnimationState::Running {
+            next_tick: Instant::now() + self.tick_duration,
+        }
     }
 
     pub fn end(&mut self) {
-        self.ended = true;
-
+        self.state = AnimationState::Stop;
         self.render_blink = true;
-        self.tick_duration = None;
     }
 
     /// Set tick duration.
@@ -103,18 +106,19 @@ impl AnimationTicker {
         } else {
             duration
         };
-        self.tick_duration = Some((duration, Instant::now() + duration))
+
+        self.tick_duration = duration;
     }
 
     /// Waits for next tick.
     ///
     /// Returns whether is a pending tick
     pub async fn wait_tick(&self) -> bool {
-        let Some((_, tick_end)) = self.tick_duration else {
+        let AnimationState::Running { next_tick } = self.state else {
             return false;
         };
 
-        tokio::time::sleep_until(tick_end).await;
+        tokio::time::sleep_until(next_tick).await;
 
         true
     }
@@ -168,18 +172,18 @@ impl AnimationTick {
     pub fn map<T>(self, target: Range<T>) -> T
     where
         T: Copy + Cast<f32> + Arithmetic<T>,
-        usize: Cast<T>,
+        f32: Cast<T>,
     {
         let range_len = self.range();
         if range_len == 0 || target.end <= target.start {
             return target.start;
         }
 
-        let target_len: f32 = Cast::cast(target.end - target.start);
+        let target_len = (target.end - target.start).casted::<f32>();
 
-        let value = self.tick as f32 / range_len as f32;
+        let value = self.tick.casted::<f32>() / range_len.casted::<f32>();
 
-        Cast::cast((value * target_len) as usize) + target.start
+        (value * target_len).casted::<T>() + target.start
     }
 }
 

@@ -51,7 +51,7 @@ impl Blinker<'_, (), false> {
     pub fn new<'a, M, D: Drawable<'a, M>>(draw: D) -> Blinker<'a, D, { D::STATEFUL }> {
         Blinker {
             draw,
-            marker: Default::default(),
+            marker: PhantomData,
         }
     }
 }
@@ -61,7 +61,7 @@ impl<'a, M, D: Drawable<'a, M, State = ()>> Drawable<'a, M> for Blinker<'a, D, f
 
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
         if state.render_blink {
-            self.draw.draw((), frame, area)
+            self.draw.draw((), frame, area);
         }
     }
 }
@@ -71,7 +71,7 @@ impl<'a, M, D: Drawable<'a, M>> Drawable<'a, M> for Blinker<'a, D, true> {
 
     fn draw(self, state: Self::State, frame: &mut Frame, area: Rect) {
         if state.0.render_blink {
-            self.draw.draw(state.1, frame, area)
+            self.draw.draw(state.1, frame, area);
         }
     }
 }
@@ -172,7 +172,7 @@ impl<'a, M, D: Drawable<'a, M>> Drawable<'a, M> for AnimatedIsland<'a, D, M, tru
                 }
                 Side::Right => todo!(),
             }
-        };
+        }
 
         area = area.intersection(frame.area().inner(Margin::both(1)));
 
@@ -411,7 +411,7 @@ impl InputState {
 
     pub fn select_all(&mut self) {
         self.cursor = 0;
-        self.selection = Some((0, self.content.len()))
+        self.selection = Some((0, self.content.len()));
     }
 }
 
@@ -443,31 +443,40 @@ impl<'s> Drawable<'s, Input> for Input {
         let area = area.inner(Margin::both(1));
 
         // Cursor scroll when out of bounds
-        let cursor_offset = state.cursor as isize - state.offset as isize;
+        let cursor_offset = state.cursor.casted::<isize>() - state.offset.casted::<isize>();
 
-        if cursor_offset >= area.width as isize {
-            state.offset += (cursor_offset as usize).saturating_sub(area.width as usize);
-        } else if cursor_offset < 0 as isize {
+        if cursor_offset >= area.width.casted::<isize>() {
+            state.offset += cursor_offset
+                .casted::<usize>()
+                .saturating_sub(area.width.casted::<usize>());
+        } else if cursor_offset < 0_isize {
             state.offset = state.offset.saturating_sub(cursor_offset.unsigned_abs());
         }
 
         // Scroll to inner view on resize
-        let end_offset =
-            state.content.len().saturating_sub(state.offset) as isize - area.width as isize;
+        let end_offset = state
+            .content
+            .len()
+            .saturating_sub(state.offset)
+            .casted::<isize>()
+            - area.width.casted::<isize>();
 
         if end_offset < 0 {
-            state.offset = state.offset.saturating_sub(end_offset.unsigned_abs())
+            state.offset = state.offset.saturating_sub(end_offset.unsigned_abs());
         }
 
         // Update USER cursor position
-        let cursor_offset = (state.cursor as isize) - state.offset as isize;
+        let cursor_offset = state.cursor.casted::<isize>() - state.offset.casted::<isize>();
         let mut pos = area.as_position();
-        pos.x = pos.x.saturating_add(cursor_offset.unsigned_abs() as u16);
+        pos.x = pos
+            .x
+            .saturating_add(cursor_offset.unsigned_abs().casted::<u16>());
         frame.set_cursor_position(pos);
 
         // Viewport area
         let viewport_start = state.offset;
-        let viewport_end = (state.offset + area.width as usize).min(state.content.len());
+        let viewport_end = state.offset + area.width.casted::<usize>();
+        let viewport_end = viewport_end.min(state.content.len());
 
         if let Some(str) = state.content.get(viewport_start..viewport_end) {
             Text::raw(str)
@@ -478,18 +487,18 @@ impl<'s> Drawable<'s, Input> for Input {
             if let Some((start, len)) = state.selection {
                 let end = (start + len)
                     .saturating_sub(viewport_start)
-                    .min(area.width as usize);
+                    .min(area.width.casted::<usize>());
                 let start = start
                     .saturating_sub(viewport_start)
-                    .min(area.width as usize);
+                    .min(area.width.casted::<usize>());
                 let len = end - start;
 
                 if len == 0 {
                     return;
                 }
 
-                let start = start as u16 + area.x;
-                for x in 0..len as u16 {
+                let start = start.casted::<u16>() + area.x;
+                for x in 0..len.casted::<u16>() {
                     frame.buffer_mut()[(start + x, area.y)]
                         .set_style(Style::new().fg(Color::Cyan).reversed());
                 }
