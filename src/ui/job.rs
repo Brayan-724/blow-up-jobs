@@ -73,7 +73,10 @@ impl Component for Job {
         ])
         .split(area.inner(Margin::both(1)));
 
-        frame.draw(render_help, area[0], state);
+        if state.current_job.is_some() {
+            frame.draw(render_help, area[0], state);
+        }
+
         frame.draw(render_loading_bar, area[0], state);
 
         frame.draw(render_job, area[1], state);

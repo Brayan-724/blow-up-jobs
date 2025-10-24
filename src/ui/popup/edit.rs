@@ -1,9 +1,11 @@
 use crate::app::App;
+use crate::job::{Job, JobStartError};
 use crate::ui::prelude::*;
 
 #[derive(Default)]
 pub struct EditPopup {
     input: common::InputState,
+    last_err: Option<JobStartError>,
 }
 
 impl Component for EditPopup {
@@ -29,13 +31,22 @@ impl Component for EditPopup {
                 let content = state.popup_edit.input.content.clone();
 
                 if content.is_empty() {
+                    return Action::Noop;
+                }
+
+                let mut new_job = Job::new(&content);
+
+                if let Err(err) = new_job.start() {
+                    state.popup_edit.last_err = Some(err);
                     return Action::Tick;
                 }
 
-                if let Some(job) = state.current_job_mut() {
-                    job.with_cmd(content);
-                    _ = job.restart();
-                }
+                let Some(job) = state.current_job_mut() else {
+                    new_job.kill();
+                    return Action::Noop;
+                };
+
+                *job = new_job;
 
                 Action::Quit
             }
@@ -46,18 +57,31 @@ impl Component for EditPopup {
 
     fn draw(state: &mut Self::State, frame: &mut Frame, area: Rect) {
         let area = area.inner(Margin::new(1, 0));
-        let [input, _, buttons] = Layout::vertical([
+        let [title, input, error, _, buttons] = Layout::vertical([
+            Constraint::Length(1), // Title
             Constraint::Length(3), // Input
-            Constraint::Percentage(100),
+            Constraint::Length(2), // Error
+            Constraint::Length(1),
             Constraint::Length(1), // Buttons
         ])
         .split(area);
+
+        frame.draw(Text::raw("Edit").style(state.theme.normal), title, ());
 
         frame.draw(
             common::Input::default().border_style(state.theme.border.dim()),
             input,
             &mut state.popup_edit.input,
         );
+
+        if let Some(ref err) = state.popup_edit.last_err {
+            let err_msg = err.to_text();
+
+            Paragraph::new(err_msg)
+                .wrap(Wrap { trim: true })
+                .fg(Color::LightRed)
+                .render(error, frame.buffer_mut());
+        }
 
         popup::action_buttons(
             [("ESC", Color::LightRed), ("Enter", Color::Blue)],
