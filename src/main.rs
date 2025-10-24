@@ -82,21 +82,17 @@ async fn run_app(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()
 
             app.update_sidebar();
 
-            let mut action = app.anim.update();
-            action |= app.sidebar_anim.update();
-            action |= app.popup.anim.update();
-
             let job_tick = app.job_tick();
             let anim = app.anim.wait_tick();
             let sidebar_anim = app.sidebar_anim.wait_tick();
             let popup_anim = app.popup.anim.wait_tick();
 
             let mut action = tokio::select! {
-                true = popup_anim => action,
-                true = anim => action,
-                true = sidebar_anim => action,
-                true = job_tick => continue 'draw,
                 Ok(ev) = TermEvents => App::handle_event(app, ev).await,
+                true = job_tick => ui::Action::Tick,
+                true = anim => ui::Action::Noop,
+                true = popup_anim => ui::Action::Noop,
+                true = sidebar_anim => ui::Action::Noop,
             };
 
             action |= app.anim.update();

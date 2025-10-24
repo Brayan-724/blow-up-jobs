@@ -150,7 +150,7 @@ impl std::ops::BitOr for Action {
 
 impl std::ops::BitOrAssign for Action {
     fn bitor_assign(&mut self, rhs: Self) {
-        if self == &Action::Noop {
+        if *self == Action::Noop {
             *self = rhs;
         }
     }
@@ -668,7 +668,7 @@ macro_rules! impl_cast {
     (@ (f, $a:ty), ($_:ident, $b:ty)) => {
         impl Cast<$b> for $a {
             fn cast(self) -> $b {
-                unsafe { self.to_int_unchecked() }
+                self.trunc() as $b
             }
         }
     };

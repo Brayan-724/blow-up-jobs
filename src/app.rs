@@ -32,6 +32,7 @@ impl App {
     pub fn new() -> Self {
         let mut anim = AnimationTicker::default();
         anim.len = 120;
+        anim.next_tick(Duration::ZERO);
         anim.start();
 
         let mut sidebar_anim = AnimationTicker::default();

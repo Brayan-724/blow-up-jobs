@@ -46,7 +46,7 @@ impl AnimationTicker {
 
     pub fn update(&mut self) -> Action {
         match self.state {
-            AnimationState::Running { next_tick } if Instant::now() < next_tick => {
+            AnimationState::Running { next_tick } if Instant::now() > next_tick => {
                 self.state = AnimationState::Running {
                     next_tick: Instant::now() + self.tick_duration,
                 };
